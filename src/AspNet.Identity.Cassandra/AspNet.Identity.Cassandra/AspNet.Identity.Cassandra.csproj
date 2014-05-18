@@ -54,6 +54,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Cassandra\UserContext.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="Entities\CassandraUser.cs" />
     <Compile Include="Entities\CassandraUserClaim.cs" />

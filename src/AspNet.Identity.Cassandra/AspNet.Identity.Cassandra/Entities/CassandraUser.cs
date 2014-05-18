@@ -3,13 +3,17 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Cassandra.Data.Linq;
 using Microsoft.AspNet.Identity;
 
 namespace AspNet.Identity.Cassandra.Entities
 {
+    [Table("users")]
     public class CassandraUser : IUser
     {
-        public string Id { get; private set; }
+        [ClusteringKey(0)]
+        public string Id { get; set; }
+        [PartitionKey]
         public string UserName { get; set; }
         private ICollection<CassandraUserClaim> _claims { get; set; }
         private ICollection<CassandraUserLogin> _logins { get; set; }

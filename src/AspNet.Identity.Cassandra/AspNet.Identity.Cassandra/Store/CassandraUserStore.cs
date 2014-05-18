@@ -6,8 +6,10 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
+using AspNet.Identity.Cassandra.Cassandra;
 using AspNet.Identity.Cassandra.Entities;
 using Cassandra;
+using Cassandra.Data.Linq;
 using Microsoft.AspNet.Identity;
 
 namespace AspNet.Identity.Cassandra.Store
@@ -25,17 +27,31 @@ namespace AspNet.Identity.Cassandra.Store
     {
 
         private Session _session;
+        private UserContext _userContext;
 
         public CassandraUserStore(Session session)
         {
+            try
+            {
+                session.ChangeKeyspace("users");
+            }
+            catch (InvalidQueryException)
+            {
+                session.CreateKeyspaceIfNotExists("users");
+                session.ChangeKeyspace("users");
+            }
             _session = session;
+            
+            _userContext = new UserContext(session);
         }
 
         public async Task CreateAsync(TUser user)
         {
-            var prepared =_session.Prepare("INSERT into users (username, passwordhash, securitystamp) VALUES (?, ?, ?)");
+            var prepared =_session.Prepare("INSERT into users.users (Id, UserName, Passwordhash, Securitystamp) VALUES (?, ?, ?, ?)");
             var bound = prepared.Bind(user.UserName, user.PasswordHash, user.SecurityStamp);
             await Task<RowSet>.Factory.FromAsync(_session.BeginExecute, _session.EndExecute, bound, null);
+
+
         }
 
         public async Task UpdateAsync(TUser user)
@@ -63,9 +79,13 @@ namespace AspNet.Identity.Cassandra.Store
             throw new NotImplementedException();
         }
 
-        public Task<TUser> FindByNameAsync(string userName)
+        public async Task<TUser> FindByNameAsync(string userName)
         {
-            throw new NotImplementedException();
+            var table = _session.GetTable<TUser>();
+            var userQuery = table.FirstOrDefault(u => u.UserName == userName);
+            var task = Task<TUser>.Factory.FromAsync(userQuery.BeginExecute, userQuery.EndExecute, null);
+            await task;
+            return task.Result;
         }
 
         public Task AddLoginAsync(TUser user, UserLoginInfo login)

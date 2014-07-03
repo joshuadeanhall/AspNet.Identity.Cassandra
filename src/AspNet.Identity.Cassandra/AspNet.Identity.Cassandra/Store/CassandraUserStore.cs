@@ -47,55 +47,75 @@ namespace AspNet.Identity.Cassandra.Store
 
         public async Task CreateAsync(TUser user)
         {
-            var prepared =_session.Prepare("INSERT into users.users (Id, UserName, Passwordhash, Securitystamp) VALUES (?, ?, ?, ?)");
+            var prepared =
+                _session.Prepare(
+                    "INSERT into users.users (Id, UserName, Passwordhash, Securitystamp) VALUES (?, ?, ?, ?)");
             var bound = prepared.Bind(user.UserName, user.PasswordHash, user.SecurityStamp);
-            await Task<RowSet>.Factory.FromAsync(_session.BeginExecute, _session.EndExecute, bound, null);
-
-
+            await _session.ExecuteAsync(bound);
         }
 
         public async Task UpdateAsync(TUser user)
         {
             var prepared = _session.Prepare("UPDATE users SET passwordhash = ?, securitystamp = ? WHERE username = ?");
             var bound = prepared.Bind(user.PasswordHash, user.SecurityStamp, user.UserName);
-            _session.Execute(bound);
-            await ExecuteBountStatementAsync(bound);
+            await _session.ExecuteAsync(bound);
         }
-
-        private async Task ExecuteBountStatementAsync(BoundStatement bound)
-        {
-            await Task<RowSet>.Factory.FromAsync(_session.BeginExecute, _session.EndExecute, bound, null);
-        }
-
+        
         public async Task DeleteAsync(TUser user)
         {
             var prepared = _session.Prepare("DELETE from users where username = ?");
             var bound = prepared.Bind(user.UserName);
-            await ExecuteBountStatementAsync(bound);
+            await _session.ExecuteAsync(bound);
         }
 
         public Task<TUser> FindByIdAsync(string userId)
         {
-            throw new NotImplementedException();
+            var prepared = _session.Prepare("SELECT * FROM users where userId = ?");
+            var bound = prepared.Bind(userId);
+            var rows = _session.Execute(bound);
+            var row = rows.Single();
+            var user = new CassandraUser
+            {
+                Id = row.GetValue<Guid>("userId").ToString(),
+                PasswordHash = row.GetValue<string>("passwordHash"),
+                SecurityStamp = row.GetValue<string>("securityStamp"),
+                UserName = row.GetValue<string>("userName")
+            };
+            return Task.FromResult((TUser)user);
         }
 
-        public async Task<TUser> FindByNameAsync(string userName)
+        public Task<TUser> FindByNameAsync(string userName)
         {
             var table = _session.GetTable<TUser>();
             var userQuery = table.FirstOrDefault(u => u.UserName == userName);
-            var task = Task<TUser>.Factory.FromAsync(userQuery.BeginExecute, userQuery.EndExecute, null);
-            await task;
-            return task.Result;
+            var rows = _session.Execute(userQuery);
+            var row = rows.Single();
+            var user = new CassandraUser
+            {
+                Id = row.GetValue<Guid>("userId").ToString(),
+                PasswordHash = row.GetValue<string>("passwordHash"),
+                SecurityStamp = row.GetValue<string>("securityStamp"),
+                UserName = row.GetValue<string>("userName")
+            };
+            return Task.FromResult((TUser) user);
         }
 
-        public Task AddLoginAsync(TUser user, UserLoginInfo login)
+        public async Task AddLoginAsync(TUser user, UserLoginInfo login)
         {
-            throw new NotImplementedException();
+            var prepared =
+                _session.Prepare(
+                    "INSERT into users.login (Id, UserId, LoginProvider, ProviderKey) VALUES (?, ?, ?, ?)");
+            var bound = prepared.Bind(CassandraUserLogin.GenerateKey(login.LoginProvider, login.ProviderKey), user.Id, login.LoginProvider, login.ProviderKey);
+            await _session.ExecuteAsync(bound);
         }
 
-        public Task RemoveLoginAsync(TUser user, UserLoginInfo login)
+        public async Task RemoveLoginAsync(TUser user, UserLoginInfo login)
         {
-            throw new NotImplementedException();
+            var prepared =
+                _session.Prepare(
+                    "DELETE FROM users.login WHERE Id = ?");
+            var bound = prepared.Bind(CassandraUserLogin.GenerateKey(login.LoginProvider, login.ProviderKey));
+            await _session.ExecuteAsync(bound);
         }
 
         public Task<IList<UserLoginInfo>> GetLoginsAsync(TUser user)

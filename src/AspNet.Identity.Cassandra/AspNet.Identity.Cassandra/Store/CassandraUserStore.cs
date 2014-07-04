@@ -90,6 +90,12 @@ namespace AspNet.Identity.Cassandra.Store
             var userQuery = table.FirstOrDefault(u => u.UserName == userName);
             var rows = _session.Execute(userQuery);
             var row = rows.Single();
+            var user = MapRowToUser(row);
+            return Task.FromResult((TUser) user);
+        }
+
+        private static CassandraUser MapRowToUser(Row row)
+        {
             var user = new CassandraUser
             {
                 Id = row.GetValue<Guid>("userId").ToString(),
@@ -97,7 +103,7 @@ namespace AspNet.Identity.Cassandra.Store
                 SecurityStamp = row.GetValue<string>("securityStamp"),
                 UserName = row.GetValue<string>("userName")
             };
-            return Task.FromResult((TUser) user);
+            return user;
         }
 
         public async Task AddLoginAsync(TUser user, UserLoginInfo login)
@@ -118,28 +124,48 @@ namespace AspNet.Identity.Cassandra.Store
             await _session.ExecuteAsync(bound);
         }
 
-        public Task<IList<UserLoginInfo>> GetLoginsAsync(TUser user)
+        public async Task<IList<UserLoginInfo>> GetLoginsAsync(TUser user)
         {
-            throw new NotImplementedException();
+            var prepared = _session.Prepare("SELECT * FROM users.login WHERE userId = ?");
+            var bound = prepared.Bind(user.Id);
+            var rows = await _session.ExecuteAsync(bound);
+            return rows.Select(row => new UserLoginInfo(row.GetValue<string>("userId"), row.GetValue<string>("providerKey"))).ToList();
         }
 
         public Task<TUser> FindAsync(UserLoginInfo login)
         {
-            throw new NotImplementedException();
+            var prepared = _session.Prepare("SELECT * FROM users.login where loginProvider = ? AND providerKey = ?");
+            var bound = prepared.Bind(login.LoginProvider, login.ProviderKey);
+            var row = _session.Execute(bound).FirstOrDefault();
+            prepared = _session.Prepare("SELECT * FROM users where userId = ?");
+            bound = prepared.Bind(row.GetValue<int>("userId"));
+            row = _session.Execute(bound).FirstOrDefault();
+            return Task.FromResult((TUser) MapRowToUser(row));
         }
 
-        public Task<IList<Claim>> GetClaimsAsync(TUser user)
+        public async Task<IList<Claim>> GetClaimsAsync(TUser user)
         {
-            throw new NotImplementedException();
+            var prepared = _session.Prepare("SELECT * FROM users.claim WHERE userId = ?");
+            var bound = prepared.Bind(user.Id);
+            var rows = await _session.ExecuteAsync(bound);
+            return rows.Select(row => new Claim(row.GetValue<string>("type"), row.GetValue<string>("value"), row.GetValue<string>("valueType"), row.GetValue<string>("issuer"), row.GetValue<string>("originalissuer"))).ToList();
         }
 
-        public Task AddClaimAsync(TUser user, Claim claim)
+        public async Task AddClaimAsync(TUser user, Claim claim)
         {
-            throw new NotImplementedException();
+            var prepared =
+                _session.Prepare(
+                    "INSERT into users.claim (Id, UserId, Issuer, OriginalIssuer, Subject, Type, Value, ValueType");
+            var bound = prepared.Bind(CassandraUserClaim.GenerateKey(user.Id, claim.Issuer, claim.Type), user.Id,
+                claim.Issuer, claim.OriginalIssuer, claim.Subject, claim.Type, claim.Value, claim.ValueType);
+            await _session.ExecuteAsync(bound);
         }
 
         public Task RemoveClaimAsync(TUser user, Claim claim)
         {
+            //var prepared = _session.Prepare("DELETE from users.claim where username = ?");
+            //var bound = prepared.Bind(user.UserName);
+            //await _session.ExecuteAsync(bound);
             throw new NotImplementedException();
         }
 

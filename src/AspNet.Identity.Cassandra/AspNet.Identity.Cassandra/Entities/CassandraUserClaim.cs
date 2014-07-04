@@ -12,5 +12,10 @@ namespace AspNet.Identity.Cassandra.Entities
             if (claim == null) throw new ArgumentNullException("claim");
             Claim = claim;
         }
+
+        internal static string GenerateKey(string userId, string issuer, string type)
+        {
+            return string.Format(Constants.CassandraUserClaim, userId, issuer, type);
+        }
     }
 }

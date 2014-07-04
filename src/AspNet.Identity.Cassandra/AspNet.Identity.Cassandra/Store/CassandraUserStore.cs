@@ -1,10 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics.Eventing.Reader;
-using System.IO;
 using System.Linq;
 using System.Security.Claims;
-using System.Text;
 using System.Threading.Tasks;
 using AspNet.Identity.Cassandra.Cassandra;
 using AspNet.Identity.Cassandra.Entities;
@@ -27,11 +24,11 @@ namespace AspNet.Identity.Cassandra.Store
         IUserPhoneNumberStore<TUser> where TUser : CassandraUser
     {
 
-        private Session _session;
-        private UserContext _userContext;
+        private ISession _session;
 
-        public CassandraUserStore(Session session)
+        public CassandraUserStore(CassandraContext context)
         {
+            var session = context.Session;
             try
             {
                 session.ChangeKeyspace("users");
@@ -42,15 +39,16 @@ namespace AspNet.Identity.Cassandra.Store
                 session.ChangeKeyspace("users");
             }
             _session = session;
-            
-            _userContext = new UserContext(session);
+            session.GetTable<CassandraUser>().CreateIfNotExists();
+            session.GetTable<CassandraUserClaim>().CreateIfNotExists();
+            session.GetTable<CassandraUserLogin>().CreateIfNotExists();
         }
 
         public async Task CreateAsync(TUser user)
         {
             var prepared =
                 _session.Prepare(
-                    "INSERT into userss (Id, UserName, Passwordhash, Securitystamp) VALUES (?, ?, ?, ?)");
+                    "INSERT into users (Id, UserName, Passwordhash, Securitystamp) VALUES (?, ?, ?, ?)");
             var bound = prepared.Bind(user.UserName, user.PasswordHash, user.SecurityStamp);
             await _session.ExecuteAsync(bound);
         }
@@ -82,15 +80,18 @@ namespace AspNet.Identity.Cassandra.Store
         public Task<TUser> FindByNameAsync(string userName)
         {
             var table = _session.GetTable<TUser>();
-            var userQuery = table.FirstOrDefault(u => u.UserName == userName);
-            var rows = _session.Execute(userQuery);
-            var row = rows.Single();
+            var prepared = _session.Prepare("SELECT * FROM users where username = ?");
+            var bound = prepared.Bind(userName);
+            var rows = _session.Execute(bound);
+            var row = rows.FirstOrDefault();
             var user = MapRowToUser(row);
             return Task.FromResult((TUser) user);
         }
 
         private static CassandraUser MapRowToUser(Row row)
         {
+            if (row == null)
+                return new CassandraUser();
             var user = new CassandraUser
             {
                 Id = row.GetValue<Guid>("userId").ToString(),

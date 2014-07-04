@@ -14,6 +14,7 @@ using Microsoft.AspNet.Identity;
 
 namespace AspNet.Identity.Cassandra.Store
 {
+    //TODO update the create and update methods
     public class CassandraUserStore<TUser> : IUserStore<TUser>,
         IUserLoginStore<TUser>,
         IUserClaimStore<TUser>,
@@ -49,7 +50,7 @@ namespace AspNet.Identity.Cassandra.Store
         {
             var prepared =
                 _session.Prepare(
-                    "INSERT into users.users (Id, UserName, Passwordhash, Securitystamp) VALUES (?, ?, ?, ?)");
+                    "INSERT into userss (Id, UserName, Passwordhash, Securitystamp) VALUES (?, ?, ?, ?)");
             var bound = prepared.Bind(user.UserName, user.PasswordHash, user.SecurityStamp);
             await _session.ExecuteAsync(bound);
         }
@@ -96,7 +97,12 @@ namespace AspNet.Identity.Cassandra.Store
                 PasswordHash = row.GetValue<string>("passwordHash"),
                 SecurityStamp = row.GetValue<string>("securityStamp"),
                 UserName = row.GetValue<string>("userName"),
-                IsTwoFactorEnabled = row.GetValue<bool>("isTwoFactorEnabled")
+                IsTwoFactorEnabled = row.GetValue<bool>("isTwoFactorEnabled"),
+                AccessFailedCount = row.GetValue<int>("accessFailedCount"),
+                Email = row.GetValue<string>("email"),
+                EmailConfirmedOn = row.GetValue<DateTimeOffset?>("emailConfirmedOn"),
+                IsLockoutEnabled = row.GetValue<bool>("isLockoutEnabled"),
+                LockoutEndDate = row.GetValue<DateTimeOffset?>("lockoutEndDate")
             };
             return user;
         }
@@ -105,7 +111,7 @@ namespace AspNet.Identity.Cassandra.Store
         {
             var prepared =
                 _session.Prepare(
-                    "INSERT into users.login (Id, UserId, LoginProvider, ProviderKey) VALUES (?, ?, ?, ?)");
+                    "INSERT into logins (Id, UserId, LoginProvider, ProviderKey) VALUES (?, ?, ?, ?)");
             var bound = prepared.Bind(CassandraUserLogin.GenerateKey(login.LoginProvider, login.ProviderKey), user.Id, login.LoginProvider, login.ProviderKey);
             await _session.ExecuteAsync(bound);
         }
@@ -114,14 +120,14 @@ namespace AspNet.Identity.Cassandra.Store
         {
             var prepared =
                 _session.Prepare(
-                    "DELETE FROM users.login WHERE Id = ?");
+                    "DELETE FROM logins WHERE Id = ?");
             var bound = prepared.Bind(CassandraUserLogin.GenerateKey(login.LoginProvider, login.ProviderKey));
             await _session.ExecuteAsync(bound);
         }
 
         public async Task<IList<UserLoginInfo>> GetLoginsAsync(TUser user)
         {
-            var prepared = _session.Prepare("SELECT * FROM users.login WHERE userId = ?");
+            var prepared = _session.Prepare("SELECT * FROM logins WHERE userId = ?");
             var bound = prepared.Bind(user.Id);
             var rows = await _session.ExecuteAsync(bound);
             return rows.Select(row => new UserLoginInfo(row.GetValue<string>("userId"), row.GetValue<string>("providerKey"))).ToList();
@@ -129,7 +135,7 @@ namespace AspNet.Identity.Cassandra.Store
 
         public Task<TUser> FindAsync(UserLoginInfo login)
         {
-            var prepared = _session.Prepare("SELECT * FROM users.login where loginProvider = ? AND providerKey = ?");
+            var prepared = _session.Prepare("SELECT * FROM logins where loginProvider = ? AND providerKey = ?");
             var bound = prepared.Bind(login.LoginProvider, login.ProviderKey);
             var row = _session.Execute(bound).FirstOrDefault();
             prepared = _session.Prepare("SELECT * FROM users where userId = ?");
@@ -140,7 +146,7 @@ namespace AspNet.Identity.Cassandra.Store
 
         public async Task<IList<Claim>> GetClaimsAsync(TUser user)
         {
-            var prepared = _session.Prepare("SELECT * FROM users.claim WHERE userId = ?");
+            var prepared = _session.Prepare("SELECT * FROM claims WHERE userId = ?");
             var bound = prepared.Bind(user.Id);
             var rows = await _session.ExecuteAsync(bound);
             return rows.Select(row => new Claim(row.GetValue<string>("type"), row.GetValue<string>("value"), row.GetValue<string>("valueType"), row.GetValue<string>("issuer"), row.GetValue<string>("originalissuer"))).ToList();
@@ -150,7 +156,7 @@ namespace AspNet.Identity.Cassandra.Store
         {
             var prepared =
                 _session.Prepare(
-                    "INSERT into users.claim (Id, UserId, Issuer, OriginalIssuer, Subject, Type, Value, ValueType");
+                    "INSERT into claims (Id, UserId, Issuer, OriginalIssuer, Subject, Type, Value, ValueType");
             var bound = prepared.Bind(CassandraUserClaim.GenerateKey(user.Id, claim.Issuer, claim.Type), user.Id,
                 claim.Issuer, claim.OriginalIssuer, claim.Subject, claim.Type, claim.Value, claim.ValueType);
             await _session.ExecuteAsync(bound);
@@ -158,7 +164,7 @@ namespace AspNet.Identity.Cassandra.Store
 
         public Task RemoveClaimAsync(TUser user, Claim claim)
         {
-            var prepared = _session.Prepare("Delete from users.claim where userId = ? and value = ? and type = ?");
+            var prepared = _session.Prepare("Delete from claims where userId = ? and value = ? and type = ?");
             var bound = prepared.Bind(user.Id, claim.Value, claim.Type);
             _session.Execute(bound);
             return Task.FromResult<object>(null);
@@ -172,141 +178,146 @@ namespace AspNet.Identity.Cassandra.Store
 
         public Task<string> GetPasswordHashAsync(TUser user)
         {
-            var cUser = (CassandraUser)FindByIdAsync(user.Id).Result;
-            return Task.FromResult(cUser.PasswordHash);
+            return Task.FromResult(user.PasswordHash);
         }
 
         public Task<bool> HasPasswordAsync(TUser user)
         {
-            var password = GetPasswordHashAsync(user).Result;
-            return Task.FromResult(string.IsNullOrEmpty(password) == false);
+            return Task.FromResult(string.IsNullOrEmpty(user.PasswordHash) == false);
         }
 
         public Task SetSecurityStampAsync(TUser user, string stamp)
         {
             user.SetSecurityStamp(stamp);
-            var prepared = _session.Prepare("UPDATE users.users SET securityStamp = ? WHERE userId = ?");
-            var bound = prepared.Bind(stamp, user.Id);
-            _session.Execute(bound);
             return Task.FromResult(0);
         }
 
         public Task<string> GetSecurityStampAsync(TUser user)
         {
-            var cUser = FindByIdAsync(user.Id).Result;
-            return Task.FromResult(cUser.SecurityStamp);
+            return Task.FromResult(user.SecurityStamp);
         }
 
         public IQueryable<TUser> Users { get; private set; }
         public Task SetTwoFactorEnabledAsync(TUser user, bool enabled)
         {
-            var prepared = _session.Prepare("UPDATE users.users SET isTwoFactorEnabledAsync = ? WHERE userId = ?");
-            var bound = prepared.Bind(enabled, user.Id);
-            _session.Execute(bound);
+            user.IsTwoFactorEnabled = enabled;
             return Task.FromResult(0);
         }
 
         public Task<bool> GetTwoFactorEnabledAsync(TUser user)
         {
-            var cUser = FindByIdAsync(user.Id).Result;
-            return Task.FromResult(cUser.IsTwoFactorEnabled);
+            return Task.FromResult(user.IsTwoFactorEnabled);
         }
 
         public Task<DateTimeOffset> GetLockoutEndDateAsync(TUser user)
         {
-            throw new NotImplementedException();
+            return Task.FromResult(user.LockoutEndDate.Value);
         }
 
         public Task SetLockoutEndDateAsync(TUser user, DateTimeOffset lockoutEnd)
         {
-            var prepared = _session.Prepare("UPDATE users.users SET lockoutEnd = ? WHERE userId = ?");
-            var bound = prepared.Bind(lockoutEnd, user.Id);
-            _session.Execute(bound);
+            user.LockoutEndDate = lockoutEnd;
             return Task.FromResult(0);
         }
 
         public Task<int> IncrementAccessFailedCountAsync(TUser user)
         {
-            throw new NotImplementedException();
+            user.AccessFailedCount++;
+            return Task.FromResult(0);
         }
 
         public Task ResetAccessFailedCountAsync(TUser user)
         {
-            throw new NotImplementedException();
+            user.AccessFailedCount = 0;
+            return Task.FromResult(0);
         }
 
         public Task<int> GetAccessFailedCountAsync(TUser user)
         {
-            throw new NotImplementedException();
+            var cUser = FindByIdAsync(user.Id).Result;
+            return Task.FromResult(cUser.AccessFailedCount);
         }
 
         public Task<bool> GetLockoutEnabledAsync(TUser user)
         {
-            throw new NotImplementedException();
+            var cUser = FindByIdAsync(user.Id).Result;
+            return Task.FromResult(cUser.IsLockoutEnabled);
         }
 
         public Task SetLockoutEnabledAsync(TUser user, bool enabled)
         {
-            var prepared = _session.Prepare("UPDATE users.users SET isTwoFactorEnabledAsync = ? WHERE userId = ?");
-            var bound = prepared.Bind(enabled, user.Id);
-            _session.Execute(bound);
+            user.IsLockoutEnabled = enabled;
             return Task.FromResult(0);
         }
 
         public Task SetEmailAsync(TUser user, string email)
         {
-            var prepared = _session.Prepare("UPDATE users.users SET email = ? WHERE userId = ?");
-            var bound = prepared.Bind(email, user.Id);
-            _session.Execute(bound);
+            user.Email = email;
             return Task.FromResult(0);
         }
 
         public Task<string> GetEmailAsync(TUser user)
         {
-            throw new NotImplementedException();
+            var cUser = FindByIdAsync(user.Id).Result;
+            return Task.FromResult(cUser.Email);
         }
 
         public Task<bool> GetEmailConfirmedAsync(TUser user)
         {
-            throw new NotImplementedException();
+            var cUser = FindByIdAsync(user.Id).Result;
+            return Task.FromResult(cUser.EmailConfirmedOn != null);
         }
 
         public Task SetEmailConfirmedAsync(TUser user, bool confirmed)
         {
-            var prepared = _session.Prepare("UPDATE users.users SET emailConfirmed = ? WHERE userId = ?");
-            var bound = prepared.Bind(confirmed, user.Id);
-            _session.Execute(bound);
+            if (confirmed)
+            {
+                user.EmailConfirmedOn = DateTime.Now;
+            }
+            else
+            {
+                user.EmailConfirmedOn = null;
+            }
             return Task.FromResult(0);
         }
 
         public Task<TUser> FindByEmailAsync(string email)
         {
-            throw new NotImplementedException();
+            var prepared = _session.Prepare("SELECT * FROM users where email = ?");
+            var bound = prepared.Bind(email);
+            var row = _session.Execute(bound).FirstOrDefault();
+            var user = MapRowToUser(row);
+            return Task.FromResult((TUser) user);
         }
 
         public Task SetPhoneNumberAsync(TUser user, string phoneNumber)
         {
-            var prepared = _session.Prepare("UPDATE users.users SET phoneNumber = ? WHERE userId = ?");
-            var bound = prepared.Bind(phoneNumber, user.Id);
-            _session.Execute(bound);
+            user.PhoneNumber = phoneNumber;
             return Task.FromResult(0);
         }
 
         public Task<string> GetPhoneNumberAsync(TUser user)
         {
-            throw new NotImplementedException();
+            var cUser = FindByIdAsync(user.Id).Result;
+            return Task.FromResult(cUser.PhoneNumber);
         }
 
         public Task<bool> GetPhoneNumberConfirmedAsync(TUser user)
         {
-            throw new NotImplementedException();
+            var cUser = FindByIdAsync(user.Id).Result;
+            return Task.FromResult(cUser.PhoneNumberConfirmedOn != null);
         }
 
         public Task SetPhoneNumberConfirmedAsync(TUser user, bool confirmed)
         {
-            var prepared = _session.Prepare("UPDATE users.users SET phoneNumberConfirmed = ? WHERE userId = ?");
-            var bound = prepared.Bind(confirmed, user.Id);
-            _session.Execute(bound);
+            if (confirmed)
+            {
+                user.PhoneNumberConfirmedOn = DateTime.Now;
+            }
+            else
+            {
+                user.PhoneNumberConfirmedOn = null;
+            }
             return Task.FromResult(0);
         }
 

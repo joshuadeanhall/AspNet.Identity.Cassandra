@@ -20,6 +20,8 @@ namespace AspNet.Identity.Cassandra.Entities
         public virtual string PasswordHash { get; set; }
         private ICollection<CassandraUserRole> _roles { get; set; }
         public virtual string SecurityStamp { get; set; }
+        public bool IsLockoutEnabled { get; private set; }
+        public bool IsTwoFactorEnabled { get; set; }
 
         public CassandraUser()
         {

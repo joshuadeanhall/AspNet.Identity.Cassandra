@@ -15,10 +15,10 @@ namespace CassandraAuthSimpleExample.Controllers
     {
         public AccountController()
         {
-            UserManager = new UserManager<ApplicationUser>(new CassandraUserStore<ApplicationUser>(SessionCreator.Create()));
+            UserManager = new UserManager<CassandraUser>(new CassandraUserStore<CassandraUser>(SessionCreator.Create()));
         }
 
-        public UserManager<ApplicationUser> UserManager { get; private set; }
+        public UserManager<CassandraUser> UserManager { get; private set; }
 
         //
         // GET: /Account/Login
@@ -71,7 +71,7 @@ namespace CassandraAuthSimpleExample.Controllers
         {
             if (ModelState.IsValid)
             {
-                var user = new CassandraUser() { Id = CassandraUser.GenerateKey(model.UserName), UserName = model.UserName };
+                var user = new CassandraUser { Id = CassandraUser.GenerateKey(model.UserName), UserName = model.UserName };
                 var result = await UserManager.CreateAsync(user, model.Password);
                 if (result.Succeeded)
                 {
@@ -258,7 +258,7 @@ namespace CassandraAuthSimpleExample.Controllers
                 {
                     return View("ExternalLoginFailure");
                 }
-                var user = new CassandraUser() { UserName = model.UserName, Id = CassandraUser.GenerateKey(model.UserName)};
+                var user = new CassandraUser { UserName = model.UserName, Id = CassandraUser.GenerateKey(model.UserName) };
                 var result = await UserManager.CreateAsync(user);
                 if (result.Succeeded)
                 {

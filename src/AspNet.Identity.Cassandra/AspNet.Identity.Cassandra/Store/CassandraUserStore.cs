@@ -24,10 +24,9 @@ namespace AspNet.Identity.Cassandra.Store
 
         private readonly ISession _session;
         public IQueryable<TUser> Users { get; private set; }
-        public CassandraUserStore(ISession session, IQueryable<TUser> users)
+        public CassandraUserStore(ISession session)
         {
             _session = session;
-            Users = users;
             _session.GetTable<CassandraUser>().CreateIfNotExists();
             _session.GetTable<CassandraUserClaim>().CreateIfNotExists();
             _session.GetTable<CassandraUserLogin>().CreateIfNotExists();
@@ -63,8 +62,8 @@ namespace AspNet.Identity.Cassandra.Store
             {
                 throw new ArgumentNullException("user");
             }
-            var prepared = _session.Prepare("DELETE from users where username = ?");
-            var bound = prepared.Bind(user.UserName);
+            var prepared = _session.Prepare("DELETE from users where id = ?");
+            var bound = prepared.Bind(user.Id);
             return _session.ExecuteAsync(bound);
         }
 
@@ -77,7 +76,7 @@ namespace AspNet.Identity.Cassandra.Store
             var prepared = _session.Prepare("SELECT * FROM users where id = ?");
             var bound = prepared.Bind(userId);
             var rows = await _session.ExecuteAsync(bound);
-            var row = rows.Single();
+            var row = rows.SingleOrDefault();
             var user = MapRowToUser(row);
             return (TUser)user;
         }
@@ -98,7 +97,8 @@ namespace AspNet.Identity.Cassandra.Store
 
         public Task<TUser> FindByEmailAsync(string email)
         {
-            var prepared = _session.Prepare("SELECT * FROM users where email = ?");
+            throw new NotImplementedException("This method does not function currently");
+            var prepared = _session.Prepare("SELECT * FROM users where email = ? ALLOW FILTERING");
             var bound = prepared.Bind(email);
             var row = _session.Execute(bound).FirstOrDefault();
             var user = MapRowToUser(row);
@@ -144,8 +144,8 @@ namespace AspNet.Identity.Cassandra.Store
 
             var prepared =
                 _session.Prepare(
-                    "DELETE FROM logins WHERE Id = ? AND userId = ?");
-            var bound = prepared.Bind(CassandraUserLogin.GenerateKey(login.LoginProvider, login.ProviderKey), user.Id);
+                    "DELETE FROM logins WHERE userId = ? and loginprovider = ? and providerkey = ?");
+            var bound = prepared.Bind(user.Id, login.LoginProvider, login.ProviderKey);
             await _session.ExecuteAsync(bound);
         }
 
@@ -156,7 +156,7 @@ namespace AspNet.Identity.Cassandra.Store
             var prepared = _session.Prepare("SELECT * FROM logins WHERE userId = ?");
             var bound = prepared.Bind(user.Id);
             var rows = await _session.ExecuteAsync(bound);
-            return rows.Select(row => new UserLoginInfo(row.GetValue<string>("userId"), row.GetValue<string>("providerKey"))).ToList();
+            return rows.Select(row => new UserLoginInfo(row.GetValue<string>("loginprovider"), row.GetValue<string>("providerkey"))).ToList();
         }
 
         public async Task<TUser> FindAsync(UserLoginInfo login)

@@ -14,16 +14,11 @@ namespace CassandraAuthSimpleExample.Controllers
     public class AccountController : Controller
     {
         public AccountController()
-            : this(new UserManager<CassandraUser>(new CassandraUserStore<CassandraUser>(SessionCreator.Create())))
         {
+            UserManager = new UserManager<ApplicationUser>(new CassandraUserStore<ApplicationUser>(SessionCreator.Create()));
         }
 
-        public AccountController(UserManager<CassandraUser> userManager)
-        {
-            UserManager = userManager;
-        }
-
-        public UserManager<CassandraUser> UserManager { get; private set; }
+        public UserManager<ApplicationUser> UserManager { get; private set; }
 
         //
         // GET: /Account/Login

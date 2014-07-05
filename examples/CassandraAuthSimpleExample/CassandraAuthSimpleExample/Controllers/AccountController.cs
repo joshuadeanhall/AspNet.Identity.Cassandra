@@ -81,7 +81,7 @@ namespace CassandraAuthSimpleExample.Controllers
         {
             if (ModelState.IsValid)
             {
-                var user = new CassandraUser() { UserName = model.UserName };
+                var user = new CassandraUser() { Id = CassandraUser.GenerateKey(model.UserName), UserName = model.UserName };
                 var result = await UserManager.CreateAsync(user, model.Password);
                 if (result.Succeeded)
                 {

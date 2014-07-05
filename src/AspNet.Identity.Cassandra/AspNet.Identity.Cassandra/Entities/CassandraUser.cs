@@ -11,10 +11,10 @@ namespace AspNet.Identity.Cassandra.Entities
     [Table("users")]
     public class CassandraUser : IUser
     {
-        [ClusteringKey(0)]
+        [PartitionKey]
         [Column("id")]
         public string Id { get; set; }
-        [PartitionKey]
+        [ClusteringKey(0)]
         [Column("username")]
         public string UserName { get; set; }
         [Column("passwordhash")]
@@ -23,7 +23,7 @@ namespace AspNet.Identity.Cassandra.Entities
         public virtual string SecurityStamp { get; set; }
         [Column("islockoutenabled")]
         public bool IsLockoutEnabled { get; set; }
-        [Column("istwofactoryenabled")]
+        [Column("istwofactorenabled")]
         public bool IsTwoFactorEnabled { get; set; }
         [Column("email")]
         public string Email { get; set; }
@@ -54,6 +54,11 @@ namespace AspNet.Identity.Cassandra.Entities
         public virtual void SetSecurityStamp(string securityStamp)
         {
             SecurityStamp = securityStamp;
+        }
+
+        public static string GenerateKey(string userName)
+        {
+            return string.Format(Constants.CassandraUserKeyTemplate, userName);
         }
     }
 }

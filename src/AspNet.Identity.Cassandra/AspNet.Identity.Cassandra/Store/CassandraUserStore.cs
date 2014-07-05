@@ -48,15 +48,15 @@ namespace AspNet.Identity.Cassandra.Store
         {
             var prepared =
                 _session.Prepare(
-                    "INSERT into users (Id, UserName, Passwordhash, Securitystamp) VALUES (?, ?, ?, ?)");
-            var bound = prepared.Bind(user.UserName, user.PasswordHash, user.SecurityStamp);
+                    "INSERT into users (Id, UserName, Passwordhash, Securitystamp, islockoutenabled, istwofactorenabled, email, accessfailedcount, lockoutenddate, phonenumber) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            var bound = prepared.Bind(CassandraUser.GenerateKey(user.UserName), user.UserName, user.PasswordHash, user.SecurityStamp, user.IsLockoutEnabled, user.IsTwoFactorEnabled, user.Email, user.AccessFailedCount, user.LockoutEndDate, user.PhoneNumber);
             await _session.ExecuteAsync(bound);
         }
 
         public async Task UpdateAsync(TUser user)
         {
-            var prepared = _session.Prepare("UPDATE users SET passwordhash = ?, securitystamp = ? WHERE username = ?");
-            var bound = prepared.Bind(user.PasswordHash, user.SecurityStamp, user.UserName);
+            var prepared = _session.Prepare("UPDATE users SET passwordhash = ?, securitystamp = ?, islockoutenabled = ?, istwofactorenabled = ?, email = ?, accessfailedcount = ?, lockoutenddate = ?, phonenumber = ? WHERE username = ?");
+            var bound = prepared.Bind(user.PasswordHash, user.SecurityStamp, user.IsLockoutEnabled, user.IsTwoFactorEnabled, user.Email, user.AccessFailedCount, user.LockoutEndDate, user.PhoneNumber, user.UserName);
             await _session.ExecuteAsync(bound);
         }
         
@@ -69,7 +69,7 @@ namespace AspNet.Identity.Cassandra.Store
 
         public Task<TUser> FindByIdAsync(string userId)
         {
-            var prepared = _session.Prepare("SELECT * FROM users where userId = ?");
+            var prepared = _session.Prepare("SELECT * FROM users where id = ?");
             var bound = prepared.Bind(userId);
             var rows = _session.Execute(bound);
             var row = rows.Single();
@@ -80,11 +80,11 @@ namespace AspNet.Identity.Cassandra.Store
         public Task<TUser> FindByNameAsync(string userName)
         {
             var table = _session.GetTable<TUser>();
-            var prepared = _session.Prepare("SELECT * FROM users where username = ?");
+            var prepared = _session.Prepare("SELECT * FROM users where username = ? ALLOW FILTERING");
             var bound = prepared.Bind(userName);
             var rows = _session.Execute(bound);
             var row = rows.FirstOrDefault();
-            var user = MapRowToUser(row);
+            var user = row == null ? null : MapRowToUser(row);
             return Task.FromResult((TUser) user);
         }
 
@@ -94,16 +94,16 @@ namespace AspNet.Identity.Cassandra.Store
                 return new CassandraUser();
             var user = new CassandraUser
             {
-                Id = row.GetValue<Guid>("userId").ToString(),
-                PasswordHash = row.GetValue<string>("passwordHash"),
-                SecurityStamp = row.GetValue<string>("securityStamp"),
-                UserName = row.GetValue<string>("userName"),
-                IsTwoFactorEnabled = row.GetValue<bool>("isTwoFactorEnabled"),
-                AccessFailedCount = row.GetValue<int>("accessFailedCount"),
+                Id = row.GetValue<string>("id"),
+                PasswordHash = row.GetValue<string>("passwordhash"),
+                SecurityStamp = row.GetValue<string>("securitystamp"),
+                UserName = row.GetValue<string>("username"),
+                IsTwoFactorEnabled = row.GetValue<bool>("istwofactorenabled"),
+                AccessFailedCount = row.GetValue<int>("accessfailedcount"),
                 Email = row.GetValue<string>("email"),
-                EmailConfirmedOn = row.GetValue<DateTimeOffset?>("emailConfirmedOn"),
-                IsLockoutEnabled = row.GetValue<bool>("isLockoutEnabled"),
-                LockoutEndDate = row.GetValue<DateTimeOffset?>("lockoutEndDate")
+                EmailConfirmedOn = row.GetValue<DateTimeOffset?>("emailconfirmedon"),
+                IsLockoutEnabled = row.GetValue<bool>("islockoutenabled"),
+                LockoutEndDate = row.GetValue<DateTimeOffset?>("lockoutenddate")
             };
             return user;
         }
@@ -112,7 +112,7 @@ namespace AspNet.Identity.Cassandra.Store
         {
             var prepared =
                 _session.Prepare(
-                    "INSERT into logins (Id, UserId, LoginProvider, ProviderKey) VALUES (?, ?, ?, ?)");
+                    "INSERT into logins (Id, id, LoginProvider, ProviderKey) VALUES (?, ?, ?, ?)");
             var bound = prepared.Bind(CassandraUserLogin.GenerateKey(login.LoginProvider, login.ProviderKey), user.Id, login.LoginProvider, login.ProviderKey);
             await _session.ExecuteAsync(bound);
         }
@@ -139,7 +139,7 @@ namespace AspNet.Identity.Cassandra.Store
             var prepared = _session.Prepare("SELECT * FROM logins where loginProvider = ? AND providerKey = ?");
             var bound = prepared.Bind(login.LoginProvider, login.ProviderKey);
             var row = _session.Execute(bound).FirstOrDefault();
-            prepared = _session.Prepare("SELECT * FROM users where userId = ?");
+            prepared = _session.Prepare("SELECT * FROM users where id = ?");
             bound = prepared.Bind(row.GetValue<int>("userId"));
             row = _session.Execute(bound).FirstOrDefault();
             return Task.FromResult((TUser) MapRowToUser(row));
@@ -150,7 +150,7 @@ namespace AspNet.Identity.Cassandra.Store
             var prepared = _session.Prepare("SELECT * FROM claims WHERE userId = ?");
             var bound = prepared.Bind(user.Id);
             var rows = await _session.ExecuteAsync(bound);
-            return rows.Select(row => new Claim(row.GetValue<string>("type"), row.GetValue<string>("value"), row.GetValue<string>("valueType"), row.GetValue<string>("issuer"), row.GetValue<string>("originalissuer"))).ToList();
+            return rows.Select(row => new Claim(row.GetValue<string>("type"), row.GetValue<string>("value"), row.GetValue<string>("valuetype"), row.GetValue<string>("issuer"), row.GetValue<string>("originalissuer"))).ToList();
         }
 
         public async Task AddClaimAsync(TUser user, Claim claim)

@@ -10,8 +10,10 @@ namespace AspNet.Identity.Cassandra.Entities
         [Column("id")]
         [ClusteringKey(0)]
         public int ClaimId { get; set; }
-        [Column("issuer")]
+        [Column("userid")]
         [PartitionKey]
+        public string UserId { get; set; }
+        [Column("issuer")]
         public string Issuer { get; set; }
         [Column("originalissuer")]
         public string OriginalIssuer { get; set; }
@@ -21,6 +23,7 @@ namespace AspNet.Identity.Cassandra.Entities
         public string Value { get; set; }
         [Column("valuetype")]
         public string ValueType { get; set; }
+        
         public CassandraUserClaim(Claim claim)
         {
             if (claim == null) throw new ArgumentNullException("claim");

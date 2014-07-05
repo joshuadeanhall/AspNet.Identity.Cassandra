@@ -32,7 +32,7 @@ namespace CassandraAuthSimpleExample
             //   appId: "",
             //   appSecret: "");
 
-            //app.UseGoogleAuthentication();
+            app.UseGoogleAuthentication();
         }
     }
 }

@@ -3,7 +3,7 @@ using Microsoft.AspNet.Identity;
 
 namespace AspNet.Identity.Cassandra.Entities
 {
-    [Table("userlogins")]
+    [Table("logins")]
     public class CassandraUserLogin
     {
         [Column("id")]

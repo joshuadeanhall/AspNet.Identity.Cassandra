@@ -136,7 +136,7 @@ namespace AspNet.Identity.Cassandra.Store
 
         public async Task<IList<Claim>> GetClaimsAsync(TUser user)
         {
-            var prepared = _session.Prepare("SELECT * FROM claims WHERE userId = ?");
+            var prepared = _session.Prepare("SELECT * FROM claims WHERE userId = ? ALLOW FILTERING");
             var bound = prepared.Bind(user.Id);
             var rows = await _session.ExecuteAsync(bound);
             return rows.Select(row => new Claim(row.GetValue<string>("type"), row.GetValue<string>("value"), row.GetValue<string>("valuetype"), row.GetValue<string>("issuer"), row.GetValue<string>("originalissuer"))).ToList();
@@ -146,9 +146,9 @@ namespace AspNet.Identity.Cassandra.Store
         {
             var prepared =
                 _session.Prepare(
-                    "INSERT into claims (Id, UserId, Issuer, OriginalIssuer, Subject, Type, Value, ValueType");
+                    "INSERT into claims (Id, UserId, Issuer, OriginalIssuer, Type, Value, ValueType) VALUES (?, ?, ?, ?, ?, ?, ?)");
             var bound = prepared.Bind(CassandraUserClaim.GenerateKey(user.Id, claim.Issuer, claim.Type), user.Id,
-                claim.Issuer, claim.OriginalIssuer, claim.Subject, claim.Type, claim.Value, claim.ValueType);
+                claim.Issuer, claim.OriginalIssuer, claim.Type, claim.Value, claim.ValueType);
             await _session.ExecuteAsync(bound);
         }
 

@@ -8,18 +8,19 @@ namespace AspNet.Identity.Cassandra.Entities
     public class CassandraUserClaim
     {
         [Column("id")]
-        [ClusteringKey(0)]
-        public int ClaimId { get; set; }
+        public string ClaimId { get; set; }
         [Column("userid")]
-        [PartitionKey]
+        [ClusteringKey(0)]
         public string UserId { get; set; }
         [Column("issuer")]
         public string Issuer { get; set; }
         [Column("originalissuer")]
         public string OriginalIssuer { get; set; }
         [Column("type")]
+        [PartitionKey(1)]
         public string Type { get; set; }
         [Column("value")]
+        [PartitionKey(0)]
         public string Value { get; set; }
         [Column("valuetype")]
         public string ValueType { get; set; }

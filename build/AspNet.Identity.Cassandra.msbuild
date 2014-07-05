@@ -1,0 +1,26 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003"
+         ToolsVersion="4.0"
+         DefaultTargets="Default">
+  <Import Project="$(MSBuildThisFileDirectory)\AspNet.Identity.Cassandra.properties"/>
+  <ItemGroup>
+    <ProjectFiles Include="$(SolutionDir)\src\**\*.csproj" />
+  </ItemGroup>
+
+  <Target Name="Default" DependsOnTargets="Package" />
+
+  <Target Name="Package" DependsOnTargets="Compile">
+    <Exec Command="$(NugetExeDir)\nuget.exe pack %(ProjectFiles.FullPath) -Build -OutputDirectory $(NuGetPackageOutputDir) -NonInteractive -Verbosity detailed" />
+  </Target>
+
+  <Target Name="Compile" DependsOnTargets="Init">
+    <MSBuild Projects="@(ProjectFiles)" Targets="Rebuild" Properties="OutDir=$(BuildArtifactsDir);Configuration=$(Configuration)" />
+  </Target>
+
+  <Target Name="Init" DependsOnTargets="Clean">
+    <MakeDir Directories="$(BuildArtifactsDir);$(NuGetPackageOutputDir)" />
+  </Target>
+
+  <Target Name="Clean">
+    <RemoveDir Directories="$(BuildArtifactsDir)" />
+  </Target>
+</Project>

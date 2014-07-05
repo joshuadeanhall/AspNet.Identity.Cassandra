@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<package>
+  <metadata>
+    <id>$id$</id>
+    <version>$version$</version>
+    <title>$title$</title>
+    <authors>$author$</authors>
+    <owners>$author$</owners>
+    <licenseUrl>https://raw.githubusercontent.com/joshuadeanhall/AspNet.Identity.Cassandra/master/LICENSE</licenseUrl>
+    <projectUrl>https://github.com/joshuadeanhall/AspNet.Identity.Cassandra</projectUrl>
+    <requireLicenseAcceptance>true</requireLicenseAcceptance>
+    <description>$description$</description>
+    <tags>Identity AspNet Cassandra Membership</tags>
+  </metadata>
+</package>

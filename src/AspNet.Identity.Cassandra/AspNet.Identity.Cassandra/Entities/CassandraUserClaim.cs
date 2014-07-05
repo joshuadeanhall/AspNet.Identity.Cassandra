@@ -28,7 +28,6 @@ namespace AspNet.Identity.Cassandra.Entities
         public CassandraUserClaim(Claim claim)
         {
             if (claim == null) throw new ArgumentNullException("claim");
-            //Claim = claim;
             Issuer = claim.Issuer;
             OriginalIssuer = claim.OriginalIssuer;
             Type = claim.Type;

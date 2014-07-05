@@ -17,6 +17,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".build", ".build", "{CA3085
 		..\..\build\AspNet.Identity.Cassandra.msbuild = ..\..\build\AspNet.Identity.Cassandra.msbuild
 		..\..\build\AspNet.Identity.Cassandra.properties = ..\..\build\AspNet.Identity.Cassandra.properties
 		..\..\build\build.ps1 = ..\..\build\build.ps1
+		..\..\build\publish.ps1 = ..\..\build\publish.ps1
 	EndProjectSection
 EndProject
 Global

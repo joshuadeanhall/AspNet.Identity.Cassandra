@@ -7,14 +7,15 @@ namespace AspNet.Identity.Cassandra.Entities
     public class CassandraUserLogin
     {
         [Column("id")]
-        [ClusteringKey(0)]
         public string Id { get; set; }
         [Column("userid")]
-        [PartitionKey]
+        [PartitionKey(0)]
         public string UserId { get; set; }
         [Column("loginprovider")]
+        [ClusteringKey(0)]
         public string LoginProvider { get; set; }
         [Column("providerkey")]
+        [ClusteringKey(1)]
         public string ProviderKey { get; set; }
 
         public CassandraUserLogin(string userId, UserLoginInfo loginInfo)

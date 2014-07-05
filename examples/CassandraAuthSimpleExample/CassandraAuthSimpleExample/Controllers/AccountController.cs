@@ -1,15 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Claims;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using System.Web;
 using System.Web.Mvc;
-using AspNet.Identity.Cassandra.Cassandra;
 using AspNet.Identity.Cassandra.Entities;
 using AspNet.Identity.Cassandra.Store;
+using CassandraAuthSimpleExample.CassandraHelper;
 using Microsoft.AspNet.Identity;
-using Microsoft.AspNet.Identity.EntityFramework;
 using Microsoft.Owin.Security;
 using CassandraAuthSimpleExample.Models;
 
@@ -19,7 +14,7 @@ namespace CassandraAuthSimpleExample.Controllers
     public class AccountController : Controller
     {
         public AccountController()
-            : this(new UserManager<CassandraUser>(new CassandraUserStore<CassandraUser>(new CassandraContext())))
+            : this(new UserManager<CassandraUser>(new CassandraUserStore<CassandraUser>(SessionCreator.Create())))
         {
         }
 
@@ -268,7 +263,7 @@ namespace CassandraAuthSimpleExample.Controllers
                 {
                     return View("ExternalLoginFailure");
                 }
-                var user = new CassandraUser() { UserName = model.UserName };
+                var user = new CassandraUser() { UserName = model.UserName, Id = CassandraUser.GenerateKey(model.UserName)};
                 var result = await UserManager.CreateAsync(user);
                 if (result.Succeeded)
                 {

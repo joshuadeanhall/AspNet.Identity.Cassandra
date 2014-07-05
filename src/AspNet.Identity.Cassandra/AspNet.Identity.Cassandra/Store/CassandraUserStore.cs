@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using AspNet.Identity.Cassandra.Cassandra;
 using AspNet.Identity.Cassandra.Entities;
 using Cassandra;
 using Cassandra.Data.Linq;
@@ -11,7 +10,6 @@ using Microsoft.AspNet.Identity;
 
 namespace AspNet.Identity.Cassandra.Store
 {
-    //TODO update the create and update methods
     public class CassandraUserStore<TUser> : IUserStore<TUser>,
         IUserLoginStore<TUser>,
         IUserClaimStore<TUser>,
@@ -24,24 +22,14 @@ namespace AspNet.Identity.Cassandra.Store
         IUserPhoneNumberStore<TUser> where TUser : CassandraUser
     {
 
-        private ISession _session;
+        private readonly ISession _session;
 
-        public CassandraUserStore(CassandraContext context)
+        public CassandraUserStore(ISession session)
         {
-            var session = context.Session;
-            try
-            {
-                session.ChangeKeyspace("users");
-            }
-            catch (InvalidQueryException)
-            {
-                session.CreateKeyspaceIfNotExists("users");
-                session.ChangeKeyspace("users");
-            }
             _session = session;
-            session.GetTable<CassandraUser>().CreateIfNotExists();
-            session.GetTable<CassandraUserClaim>().CreateIfNotExists();
-            session.GetTable<CassandraUserLogin>().CreateIfNotExists();
+            _session.GetTable<CassandraUser>().CreateIfNotExists();
+            _session.GetTable<CassandraUserClaim>().CreateIfNotExists();
+            _session.GetTable<CassandraUserLogin>().CreateIfNotExists();
         }
 
         public async Task CreateAsync(TUser user)
@@ -55,8 +43,8 @@ namespace AspNet.Identity.Cassandra.Store
 
         public async Task UpdateAsync(TUser user)
         {
-            var prepared = _session.Prepare("UPDATE users SET passwordhash = ?, securitystamp = ?, islockoutenabled = ?, istwofactorenabled = ?, email = ?, accessfailedcount = ?, lockoutenddate = ?, phonenumber = ? WHERE username = ?");
-            var bound = prepared.Bind(user.PasswordHash, user.SecurityStamp, user.IsLockoutEnabled, user.IsTwoFactorEnabled, user.Email, user.AccessFailedCount, user.LockoutEndDate, user.PhoneNumber, user.UserName);
+            var prepared = _session.Prepare("UPDATE users SET passwordhash = ?, securitystamp = ?, islockoutenabled = ?, istwofactorenabled = ?, email = ?, accessfailedcount = ?, lockoutenddate = ?, phonenumber = ? WHERE id = ? and username = ?");
+            var bound = prepared.Bind(user.PasswordHash, user.SecurityStamp, user.IsLockoutEnabled, user.IsTwoFactorEnabled, user.Email, user.AccessFailedCount, user.LockoutEndDate, user.PhoneNumber, user.Id, user.UserName);
             await _session.ExecuteAsync(bound);
         }
         
@@ -79,7 +67,6 @@ namespace AspNet.Identity.Cassandra.Store
 
         public Task<TUser> FindByNameAsync(string userName)
         {
-            var table = _session.GetTable<TUser>();
             var prepared = _session.Prepare("SELECT * FROM users where username = ? ALLOW FILTERING");
             var bound = prepared.Bind(userName);
             var rows = _session.Execute(bound);
@@ -112,7 +99,7 @@ namespace AspNet.Identity.Cassandra.Store
         {
             var prepared =
                 _session.Prepare(
-                    "INSERT into logins (Id, id, LoginProvider, ProviderKey) VALUES (?, ?, ?, ?)");
+                    "INSERT into logins (Id, userId, LoginProvider, ProviderKey) VALUES (?, ?, ?, ?)");
             var bound = prepared.Bind(CassandraUserLogin.GenerateKey(login.LoginProvider, login.ProviderKey), user.Id, login.LoginProvider, login.ProviderKey);
             await _session.ExecuteAsync(bound);
         }
@@ -136,11 +123,13 @@ namespace AspNet.Identity.Cassandra.Store
 
         public Task<TUser> FindAsync(UserLoginInfo login)
         {
-            var prepared = _session.Prepare("SELECT * FROM logins where loginProvider = ? AND providerKey = ?");
+            var prepared = _session.Prepare("SELECT * FROM logins where loginProvider = ? AND providerKey = ? ALLOW FILTERING");
             var bound = prepared.Bind(login.LoginProvider, login.ProviderKey);
             var row = _session.Execute(bound).FirstOrDefault();
+            if (row == null)
+                return Task.FromResult((TUser) null);
             prepared = _session.Prepare("SELECT * FROM users where id = ?");
-            bound = prepared.Bind(row.GetValue<int>("userId"));
+            bound = prepared.Bind(row.GetValue<string>("userid"));
             row = _session.Execute(bound).FirstOrDefault();
             return Task.FromResult((TUser) MapRowToUser(row));
         }

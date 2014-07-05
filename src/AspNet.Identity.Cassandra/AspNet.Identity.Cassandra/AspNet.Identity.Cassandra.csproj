@@ -46,6 +46,7 @@
       <HintPath>..\packages\Microsoft.AspNet.Identity.Core.2.0.1\lib\net45\Microsoft.AspNet.Identity.Core.dll</HintPath>
     </Reference>
     <Reference Include="System" />
+    <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -54,7 +55,6 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Cassandra\CassandraContext.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="Entities\CassandraUser.cs" />
     <Compile Include="Entities\CassandraUserClaim.cs" />

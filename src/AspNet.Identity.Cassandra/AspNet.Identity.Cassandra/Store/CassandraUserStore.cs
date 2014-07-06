@@ -98,11 +98,11 @@ namespace AspNet.Identity.Cassandra.Store
         public Task<TUser> FindByEmailAsync(string email)
         {
             throw new NotImplementedException("This method does not function currently");
-            var prepared = _session.Prepare("SELECT * FROM users where email = ? ALLOW FILTERING");
-            var bound = prepared.Bind(email);
-            var row = _session.Execute(bound).FirstOrDefault();
-            var user = MapRowToUser(row);
-            return Task.FromResult((TUser)user);
+            //var prepared = _session.Prepare("SELECT * FROM users where email = ? ALLOW FILTERING");
+            //var bound = prepared.Bind(email);
+            //var row = _session.Execute(bound).FirstOrDefault();
+            //var user = MapRowToUser(row);
+            //return Task.FromResult((TUser)user);
         }
 
         private static CassandraUser MapRowToUser(Row row)

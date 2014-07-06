@@ -22,7 +22,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".build", ".build", "{CA3085
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Test", "Test", "{DC020A13-B26F-44E4-ABA6-EECFA271651D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AspNet.Identity.Cassandra.IntegrationTests", "AspNet.Identity.Cassandra.IntegrationTests\AspNet.Identity.Cassandra.IntegrationTests.csproj", "{342AC911-C623-4419-81F3-F6662C20587A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AspNet.Identity.Cassandra.IntegrationTests", "..\..\test\AspNet.Identity.Cassandra.IntegrationTests\AspNet.Identity.Cassandra.IntegrationTests.csproj", "{342AC911-C623-4419-81F3-F6662C20587A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

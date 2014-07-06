@@ -12,4 +12,7 @@
     <description>$description$</description>
     <tags>Identity AspNet Cassandra Membership</tags>
   </metadata>
+  <files>
+    <file src="..\..\..\build\readme.txt" />
+  </files>
 </package>

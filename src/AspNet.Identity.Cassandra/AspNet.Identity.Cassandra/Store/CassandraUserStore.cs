@@ -21,15 +21,57 @@ namespace AspNet.Identity.Cassandra.Store
         IUserEmailStore<TUser>,
         IUserPhoneNumberStore<TUser> where TUser : CassandraUser
     {
-
         private readonly ISession _session;
+
+        // Reusable prepared statements, lazy evaluated
+        private readonly AsyncLazy<PreparedStatement> _createUser;
+        private readonly AsyncLazy<PreparedStatement> _updateUser;
+        private readonly AsyncLazy<PreparedStatement> _deleteUser;
+        private readonly AsyncLazy<PreparedStatement> _findById;
+        private readonly AsyncLazy<PreparedStatement> _findByName;
+
+        private readonly AsyncLazy<PreparedStatement> _addLogin;
+        private readonly AsyncLazy<PreparedStatement> _removeLogin;
+        private readonly AsyncLazy<PreparedStatement> _getLogins;
+        private readonly AsyncLazy<PreparedStatement> _getLoginsByProvider;
+
+        private readonly AsyncLazy<PreparedStatement> _getClaims;
+        private readonly AsyncLazy<PreparedStatement> _addClaim;
+        private readonly AsyncLazy<PreparedStatement> _removeClaim; 
+
         public IQueryable<TUser> Users { get; private set; }
+
         public CassandraUserStore(ISession session)
         {
             _session = session;
             _session.GetTable<CassandraUser>().CreateIfNotExists();
             _session.GetTable<CassandraUserClaim>().CreateIfNotExists();
             _session.GetTable<CassandraUserLogin>().CreateIfNotExists();
+
+            // Create some reusable prepared statements so we pay the cost of preparing once, then bind multiple times
+            _createUser = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
+                "INSERT INTO users (Id, UserName, Passwordhash, Securitystamp, islockoutenabled, istwofactorenabled, email, accessfailedcount, lockoutenddate, phonenumber) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
+            _updateUser = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
+                "UPDATE users SET passwordhash = ?, securitystamp = ?, islockoutenabled = ?, istwofactorenabled = ?, email = ?, accessfailedcount = ?, lockoutenddate = ?, phonenumber = ? " +
+                "WHERE id = ? and username = ?"));
+            _deleteUser = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("DELETE FROM users WHERE id = ?"));
+            _findById = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("SELECT * FROM users WHERE id = ?"));
+            _findByName = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("SELECT * FROM users WHERE username = ? ALLOW FILTERING"));
+            
+            _addLogin = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
+                "INSERT INTO logins (Id, userId, LoginProvider, ProviderKey) VALUES (?, ?, ?, ?)"));
+            _removeLogin = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
+                "DELETE FROM logins WHERE userId = ? and loginprovider = ? and providerkey = ?"));
+            _getLogins = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("SELECT * FROM logins WHERE userId = ?"));
+            _getLoginsByProvider = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
+                "SELECT * FROM logins WHERE loginProvider = ? AND providerKey = ? ALLOW FILTERING"));
+
+            _getClaims = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("SELECT * FROM claims WHERE userId = ? ALLOW FILTERING"));
+            _addClaim = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
+                "INSERT INTO claims (Id, UserId, Issuer, OriginalIssuer, Type, Value, ValueType) VALUES (?, ?, ?, ?, ?, ?, ?)"));
+            _removeClaim = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
+                "DELETE FROM claims WHERE userId = ? AND value = ? AND type = ?"));
         }
 
         public async Task CreateAsync(TUser user)
@@ -38,33 +80,34 @@ namespace AspNet.Identity.Cassandra.Store
             {
                 throw new ArgumentNullException("user");
             }
-            var prepared =
-                _session.Prepare(
-                    "INSERT into users (Id, UserName, Passwordhash, Securitystamp, islockoutenabled, istwofactorenabled, email, accessfailedcount, lockoutenddate, phonenumber) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            var bound = prepared.Bind(CassandraUser.GenerateKey(user.UserName), user.UserName, user.PasswordHash, user.SecurityStamp, user.IsLockoutEnabled, user.IsTwoFactorEnabled, user.Email, user.AccessFailedCount, user.LockoutEndDate, user.PhoneNumber);
-            await _session.ExecuteAsync(bound);
+            PreparedStatement prepared = await _createUser;
+            BoundStatement bound = prepared.Bind(CassandraUser.GenerateKey(user.UserName), user.UserName, user.PasswordHash, user.SecurityStamp,
+                                                 user.IsLockoutEnabled, user.IsTwoFactorEnabled, user.Email, user.AccessFailedCount,
+                                                 user.LockoutEndDate, user.PhoneNumber);
+            await _session.ExecuteAsync(bound).ConfigureAwait(false);
         }
 
-        public Task UpdateAsync(TUser user)
+        public async Task UpdateAsync(TUser user)
         {
             if (user == null)
             {
                 throw new ArgumentNullException("user");
             }
-            var prepared = _session.Prepare("UPDATE users SET passwordhash = ?, securitystamp = ?, islockoutenabled = ?, istwofactorenabled = ?, email = ?, accessfailedcount = ?, lockoutenddate = ?, phonenumber = ? WHERE id = ? and username = ?");
-            var bound = prepared.Bind(user.PasswordHash, user.SecurityStamp, user.IsLockoutEnabled, user.IsTwoFactorEnabled, user.Email, user.AccessFailedCount, user.LockoutEndDate, user.PhoneNumber, user.Id, user.UserName);
-            return _session.ExecuteAsync(bound);
+            PreparedStatement prepared = await _updateUser;
+            BoundStatement bound = prepared.Bind(user.PasswordHash, user.SecurityStamp, user.IsLockoutEnabled, user.IsTwoFactorEnabled, user.Email,
+                                                 user.AccessFailedCount, user.LockoutEndDate, user.PhoneNumber, user.Id, user.UserName);
+            await _session.ExecuteAsync(bound).ConfigureAwait(false);
         }
         
-        public Task DeleteAsync(TUser user)
+        public async Task DeleteAsync(TUser user)
         {
             if (user == null)
             {
                 throw new ArgumentNullException("user");
             }
-            var prepared = _session.Prepare("DELETE from users where id = ?");
-            var bound = prepared.Bind(user.Id);
-            return _session.ExecuteAsync(bound);
+            PreparedStatement prepared = await _deleteUser;
+            BoundStatement bound = prepared.Bind(user.Id);
+            await _session.ExecuteAsync(bound).ConfigureAwait(false);
         }
 
         public async Task<TUser> FindByIdAsync(string userId)
@@ -73,12 +116,13 @@ namespace AspNet.Identity.Cassandra.Store
             {
                 throw new ArgumentNullException("userId");
             }
-            var prepared = _session.Prepare("SELECT * FROM users where id = ?");
-            var bound = prepared.Bind(userId);
-            var rows = await _session.ExecuteAsync(bound);
-            var row = rows.SingleOrDefault();
-            var user = MapRowToUser(row);
-            return (TUser)user;
+            PreparedStatement prepared = await _findById;
+            BoundStatement bound = prepared.Bind(userId);
+
+            RowSet rows = await _session.ExecuteAsync(bound).ConfigureAwait(false);
+            Row row = rows.SingleOrDefault();
+            CassandraUser user = MapRowToUser(row);
+            return (TUser) user;
         }
 
         public async Task<TUser> FindByNameAsync(string userName)
@@ -87,11 +131,12 @@ namespace AspNet.Identity.Cassandra.Store
             {
                 throw new ArgumentNullException("userName");
             }
-            var prepared = _session.Prepare("SELECT * FROM users where username = ? ALLOW FILTERING");
-            var bound = prepared.Bind(userName);
-            var rows = await _session.ExecuteAsync(bound);
-            var row = rows.FirstOrDefault();
-            var user = row == null ? null : MapRowToUser(row);
+            PreparedStatement prepared = await _findByName;
+            BoundStatement bound = prepared.Bind(userName);
+
+            RowSet rows = await _session.ExecuteAsync(bound).ConfigureAwait(false);
+            Row row = rows.FirstOrDefault();
+            CassandraUser user = row == null ? null : MapRowToUser(row);
             return (TUser) user;
         }
 
@@ -130,11 +175,11 @@ namespace AspNet.Identity.Cassandra.Store
             if (user == null) throw new ArgumentNullException("user");
             if (login == null) throw new ArgumentNullException("login");
 
-            var prepared =
-                _session.Prepare(
-                    "INSERT into logins (Id, userId, LoginProvider, ProviderKey) VALUES (?, ?, ?, ?)");
-            var bound = prepared.Bind(CassandraUserLogin.GenerateKey(login.LoginProvider, login.ProviderKey), user.Id, login.LoginProvider, login.ProviderKey);
-            await _session.ExecuteAsync(bound);
+            PreparedStatement prepared = await _addLogin;
+            BoundStatement bound = prepared.Bind(CassandraUserLogin.GenerateKey(login.LoginProvider, login.ProviderKey), user.Id, login.LoginProvider,
+                                                 login.ProviderKey);
+
+            await _session.ExecuteAsync(bound).ConfigureAwait(false);
         }
 
         public async Task RemoveLoginAsync(TUser user, UserLoginInfo login)
@@ -142,20 +187,20 @@ namespace AspNet.Identity.Cassandra.Store
             if (user == null) throw new ArgumentNullException("user");
             if (login == null) throw new ArgumentNullException("login");
 
-            var prepared =
-                _session.Prepare(
-                    "DELETE FROM logins WHERE userId = ? and loginprovider = ? and providerkey = ?");
-            var bound = prepared.Bind(user.Id, login.LoginProvider, login.ProviderKey);
-            await _session.ExecuteAsync(bound);
+            PreparedStatement prepared = await _removeLogin;
+            BoundStatement bound = prepared.Bind(user.Id, login.LoginProvider, login.ProviderKey);
+
+            await _session.ExecuteAsync(bound).ConfigureAwait(false);
         }
 
         public async Task<IList<UserLoginInfo>> GetLoginsAsync(TUser user)
         {
             if (user == null) throw new ArgumentNullException("user");
 
-            var prepared = _session.Prepare("SELECT * FROM logins WHERE userId = ?");
-            var bound = prepared.Bind(user.Id);
-            var rows = await _session.ExecuteAsync(bound);
+            PreparedStatement prepared = await _getLogins;
+            BoundStatement bound = prepared.Bind(user.Id);
+
+            RowSet rows = await _session.ExecuteAsync(bound).ConfigureAwait(false);
             return rows.Select(row => new UserLoginInfo(row.GetValue<string>("loginprovider"), row.GetValue<string>("providerkey"))).ToList();
         }
 
@@ -163,15 +208,19 @@ namespace AspNet.Identity.Cassandra.Store
         {
             if (login == null) throw new ArgumentNullException("login");
 
-            var prepared = _session.Prepare("SELECT * FROM logins where loginProvider = ? AND providerKey = ? ALLOW FILTERING");
-            var bound = prepared.Bind(login.LoginProvider, login.ProviderKey);
-            var logins = await _session.ExecuteAsync(bound);
-            var loginResult = logins.FirstOrDefault();
+            PreparedStatement prepared = await _getLoginsByProvider;
+            BoundStatement bound = prepared.Bind(login.LoginProvider, login.ProviderKey);
+
+            RowSet logins = await _session.ExecuteAsync(bound).ConfigureAwait(false);
+            Row loginResult = logins.FirstOrDefault();
             if (loginResult == null)
                 return null;
-            prepared = _session.Prepare("SELECT * FROM users where id = ?");
+
+            prepared = await _findById;
             bound = prepared.Bind(loginResult.GetValue<string>("userid"));
-            var row = _session.Execute(bound).FirstOrDefault();
+
+            RowSet rows = await _session.ExecuteAsync(bound).ConfigureAwait(false);
+            Row row = rows.FirstOrDefault();
             return (TUser) MapRowToUser(row);
         }
 
@@ -179,10 +228,12 @@ namespace AspNet.Identity.Cassandra.Store
         {
             if (user == null) throw new ArgumentNullException("user");
 
-            var prepared = _session.Prepare("SELECT * FROM claims WHERE userId = ? ALLOW FILTERING");
-            var bound = prepared.Bind(user.Id);
-            var rows = await _session.ExecuteAsync(bound);
-            return rows.Select(row => new Claim(row.GetValue<string>("type"), row.GetValue<string>("value"), row.GetValue<string>("valuetype"), row.GetValue<string>("issuer"), row.GetValue<string>("originalissuer"))).ToList();
+            PreparedStatement prepared = await _getClaims;
+            BoundStatement bound = prepared.Bind(user.Id);
+
+            RowSet rows = await _session.ExecuteAsync(bound).ConfigureAwait(false);
+            return rows.Select(row => new Claim(row.GetValue<string>("type"), row.GetValue<string>("value"), row.GetValue<string>("valuetype"),
+                                                row.GetValue<string>("issuer"), row.GetValue<string>("originalissuer"))).ToList();
         }
 
         public async Task AddClaimAsync(TUser user, Claim claim)
@@ -190,22 +241,21 @@ namespace AspNet.Identity.Cassandra.Store
             if (user == null) throw new ArgumentNullException("user");
             if (claim == null) throw new ArgumentNullException("claim");
 
-            var prepared =
-                _session.Prepare(
-                    "INSERT into claims (Id, UserId, Issuer, OriginalIssuer, Type, Value, ValueType) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            var bound = prepared.Bind(CassandraUserClaim.GenerateKey(user.Id, claim.Issuer, claim.Type), user.Id,
-                claim.Issuer, claim.OriginalIssuer, claim.Type, claim.Value, claim.ValueType);
-            await _session.ExecuteAsync(bound);
+            PreparedStatement prepared = await _addClaim;
+            BoundStatement bound = prepared.Bind(CassandraUserClaim.GenerateKey(user.Id, claim.Issuer, claim.Type), user.Id,
+                                                 claim.Issuer, claim.OriginalIssuer, claim.Type, claim.Value, claim.ValueType);
+            await _session.ExecuteAsync(bound).ConfigureAwait(false);
         }
 
-        public Task RemoveClaimAsync(TUser user, Claim claim)
+        public async Task RemoveClaimAsync(TUser user, Claim claim)
         {
             if (user == null) throw new ArgumentNullException("user");
             if (claim == null) throw new ArgumentNullException("claim");
 
-            var prepared = _session.Prepare("Delete from claims where userId = ? and value = ? and type = ?");
-            var bound = prepared.Bind(user.Id, claim.Value, claim.Type);
-            return _session.ExecuteAsync(bound);
+            PreparedStatement prepared = await _removeClaim;
+            BoundStatement bound = prepared.Bind(user.Id, claim.Value, claim.Type);
+
+            await _session.ExecuteAsync(bound).ConfigureAwait(false);
         }
 
         public Task SetPasswordHashAsync(TUser user, string passwordHash)

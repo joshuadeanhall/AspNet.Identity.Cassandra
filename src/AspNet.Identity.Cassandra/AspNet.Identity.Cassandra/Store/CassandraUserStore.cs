@@ -10,23 +10,27 @@ using Microsoft.AspNet.Identity;
 
 namespace AspNet.Identity.Cassandra.Store
 {
-    public class CassandraUserStore<TUser> : IUserStore<TUser>,
-        IUserLoginStore<TUser>,
-        IUserClaimStore<TUser>,
-        IUserPasswordStore<TUser>,
-        IUserSecurityStampStore<TUser>,
-        IQueryableUserStore<TUser>,
-        IUserTwoFactorStore<TUser, string>,
-        IUserLockoutStore<TUser, string>,
-        IUserEmailStore<TUser>,
-        IUserPhoneNumberStore<TUser> where TUser : CassandraUser
+    public class CassandraUserStore<TUser, TKey> : IUserStore<TUser, TKey>
+        // IUserLoginStore<TUser>,
+        // IUserClaimStore<TUser>,
+        // IUserPasswordStore<TUser>,
+        // IUserSecurityStampStore<TUser>,
+        // IQueryableUserStore<TUser>,
+        // IUserTwoFactorStore<TUser, string>,
+        // IUserLockoutStore<TUser, string>,
+        // IUserEmailStore<TUser>,
+        // IUserPhoneNumberStore<TUser> 
+        where TUser : CassandraUser<TKey>, new ()
     {
+        // A cached copy of a completed task
+        private static readonly Task CompletedTask = Task.FromResult(true);
+
         private readonly ISession _session;
 
         // Reusable prepared statements, lazy evaluated
-        private readonly AsyncLazy<PreparedStatement> _createUser;
-        private readonly AsyncLazy<PreparedStatement> _updateUser;
-        private readonly AsyncLazy<PreparedStatement> _deleteUser;
+        private readonly AsyncLazy<PreparedStatement[]> _createUser;
+        private readonly AsyncLazy<PreparedStatement[]> _deleteUser;
+
         private readonly AsyncLazy<PreparedStatement> _findById;
         private readonly AsyncLazy<PreparedStatement> _findByName;
 
@@ -46,20 +50,23 @@ namespace AspNet.Identity.Cassandra.Store
             _session = session;
 
             // TODO:  Currently broken because no attributes on POCOs
-            _session.GetTable<CassandraUser>().CreateIfNotExists();
-            _session.GetTable<CassandraUserClaim>().CreateIfNotExists();
-            _session.GetTable<CassandraUserLogin>().CreateIfNotExists();
+            // _session.GetTable<CassandraUser>().CreateIfNotExists();
+            // _session.GetTable<CassandraUserClaim>().CreateIfNotExists();
+            // _session.GetTable<CassandraUserLogin>().CreateIfNotExists();
 
             // Create some reusable prepared statements so we pay the cost of preparing once, then bind multiple times
-            _createUser = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
-                "INSERT INTO users (Id, UserName, Passwordhash, Securitystamp, islockoutenabled, istwofactorenabled, email, accessfailedcount, lockoutenddate, phonenumber) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
-            _updateUser = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
-                "UPDATE users SET passwordhash = ?, securitystamp = ?, islockoutenabled = ?, istwofactorenabled = ?, email = ?, accessfailedcount = ?, lockoutenddate = ?, phonenumber = ? " +
-                "WHERE id = ? and username = ?"));
-            _deleteUser = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("DELETE FROM users WHERE id = ?"));
+            _createUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
+            {
+                _session.PrepareAsync("INSERT INTO users (id, username) VALUES (?, ?)"),
+                _session.PrepareAsync("INSERT INTO users_by_username (username, id) VALUES (?, ?)")
+            }));
+            _deleteUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
+            {
+                _session.PrepareAsync("DELETE FROM users WHERE id = ?"),
+                _session.PrepareAsync("DELETE FROM users_by_username WHERE username = ?")
+            }));
             _findById = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("SELECT * FROM users WHERE id = ?"));
-            _findByName = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("SELECT * FROM users WHERE username = ? ALLOW FILTERING"));
+            _findByName = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("SELECT * FROM users_by_username WHERE username = ?"));
             
             _addLogin = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
                 "INSERT INTO logins (userId, LoginProvider, ProviderKey) VALUES (?, ?, ?)"));
@@ -76,70 +83,95 @@ namespace AspNet.Identity.Cassandra.Store
                 "DELETE FROM claims WHERE userId = ? AND value = ? AND type = ?"));
         }
 
+        /// <summary>
+        /// Insert a new user.
+        /// </summary>
         public async Task CreateAsync(TUser user)
         {
-            if (user == null)
-            {
-                throw new ArgumentNullException("user");
-            }
-            PreparedStatement prepared = await _createUser;
-            BoundStatement bound = prepared.Bind(user.UserName, user.UserName, user.PasswordHash, user.SecurityStamp,
-                                                 user.IsLockoutEnabled, user.IsTwoFactorEnabled, user.Email, user.AccessFailedCount,
-                                                 user.LockoutEndDate, user.PhoneNumber);
-            await _session.ExecuteAsync(bound).ConfigureAwait(false);
+            if (user == null) throw new ArgumentNullException("user");
+
+            // TODO:  Support uniqueness for usernames/emails at the C* level using LWT?
+
+            PreparedStatement[] prepared = await _createUser;
+            var batch = new BatchStatement();
+
+            // INSERT INTO users ...
+            batch.Add(prepared[0].Bind(user.Id, user.UserName));
+
+            // INSERT INTO users_by_username ...
+            batch.Add(prepared[1].Bind(user.UserName, user.Id));
+
+            await _session.ExecuteAsync(batch).ConfigureAwait(false);
         }
 
-        public async Task UpdateAsync(TUser user)
+        /// <summary>
+        /// Update a user.
+        /// </summary>
+        public Task UpdateAsync(TUser user)
         {
-            if (user == null)
-            {
-                throw new ArgumentNullException("user");
-            }
-            PreparedStatement prepared = await _updateUser;
-            BoundStatement bound = prepared.Bind(user.PasswordHash, user.SecurityStamp, user.IsLockoutEnabled, user.IsTwoFactorEnabled, user.Email,
-                                                 user.AccessFailedCount, user.LockoutEndDate, user.PhoneNumber, user.Id, user.UserName);
-            await _session.ExecuteAsync(bound).ConfigureAwait(false);
+            if (user == null) throw new ArgumentNullException("user");
+
+            // Right now, since the only things being persisted for user are Id (which can't change) and username, which
+            // we currently assume can't change, this is a No-Op
+            // TODO:  Support updating username?
+
+            return CompletedTask;
         }
-        
+
+        /// <summary>
+        /// Delete a user.
+        /// </summary>
         public async Task DeleteAsync(TUser user)
         {
-            if (user == null)
-            {
-                throw new ArgumentNullException("user");
-            }
-            PreparedStatement prepared = await _deleteUser;
-            BoundStatement bound = prepared.Bind(user.Id);
-            await _session.ExecuteAsync(bound).ConfigureAwait(false);
+            if (user == null) throw new ArgumentNullException("user");
+
+            PreparedStatement[] prepared = await _deleteUser;
+            var batch = new BatchStatement();
+
+            // DELETE FROM users ...
+            batch.Add(prepared[0].Bind(user.Id));
+
+            // DELETE FROM users_by_username ...
+            batch.Add(prepared[1].Bind(user.UserName));
+            
+            await _session.ExecuteAsync(batch).ConfigureAwait(false);
         }
 
-        public async Task<TUser> FindByIdAsync(string userId)
+        /// <summary>
+        /// Finds a user by userId.
+        /// </summary>
+        public async Task<TUser> FindByIdAsync(TKey userId)
         {
-            if (userId == null)
-            {
-                throw new ArgumentNullException("userId");
-            }
             PreparedStatement prepared = await _findById;
             BoundStatement bound = prepared.Bind(userId);
 
             RowSet rows = await _session.ExecuteAsync(bound).ConfigureAwait(false);
-            Row row = rows.SingleOrDefault();
-            CassandraUser user = MapRowToUser(row);
-            return (TUser) user;
+            return MapRowToCassandraUser(rows.SingleOrDefault());
         }
 
+        /// <summary>
+        /// Find a user by name (assumes usernames are unique).
+        /// </summary>
         public async Task<TUser> FindByNameAsync(string userName)
         {
-            if (userName == null)
-            {
-                throw new ArgumentNullException("userName");
-            }
+            if (string.IsNullOrWhiteSpace(userName)) throw new ArgumentException("userName cannot be null or empty", "userName");
+            
             PreparedStatement prepared = await _findByName;
             BoundStatement bound = prepared.Bind(userName);
 
             RowSet rows = await _session.ExecuteAsync(bound).ConfigureAwait(false);
-            Row row = rows.FirstOrDefault();
-            CassandraUser user = row == null ? null : MapRowToUser(row);
-            return (TUser) user;
+            return MapRowToCassandraUser(rows.SingleOrDefault());
+        }
+
+        private static TUser MapRowToCassandraUser(Row row)
+        {
+            if (row == null) return null;
+
+            return new TUser
+            {
+                Id = row.GetValue<TKey>("id"),
+                UserName = row.GetValue<string>("username")
+            };
         }
 
         public Task<TUser> FindByEmailAsync(string email)
@@ -151,7 +183,7 @@ namespace AspNet.Identity.Cassandra.Store
             //var user = MapRowToUser(row);
             //return Task.FromResult((TUser)user);
         }
-
+        
         private static CassandraUser MapRowToUser(Row row)
         {
             if (row == null)

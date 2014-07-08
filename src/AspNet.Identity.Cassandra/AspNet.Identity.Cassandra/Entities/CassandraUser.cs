@@ -3,6 +3,12 @@ using Microsoft.AspNet.Identity;
 
 namespace AspNet.Identity.Cassandra.Entities
 {
+    public class CassandraUser<TKey> : IUser<TKey>
+    {
+        public TKey Id { get; internal set; }
+        public string UserName { get; set; }
+    }
+
     public class CassandraUser : IUser
     {
         public string Id { get { return UserName; } }

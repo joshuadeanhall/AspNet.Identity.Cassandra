@@ -58,7 +58,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AsyncLazy.cs" />
-    <Compile Include="Constants.cs" />
     <Compile Include="Entities\CassandraUser.cs" />
     <Compile Include="Entities\CassandraUserClaim.cs" />
     <Compile Include="Entities\CassandraUserLogin.cs" />

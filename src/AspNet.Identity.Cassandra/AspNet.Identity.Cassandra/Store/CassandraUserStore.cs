@@ -44,6 +44,8 @@ namespace AspNet.Identity.Cassandra.Store
         public CassandraUserStore(ISession session)
         {
             _session = session;
+
+            // TODO:  Currently broken because no attributes on POCOs
             _session.GetTable<CassandraUser>().CreateIfNotExists();
             _session.GetTable<CassandraUserClaim>().CreateIfNotExists();
             _session.GetTable<CassandraUserLogin>().CreateIfNotExists();
@@ -60,7 +62,7 @@ namespace AspNet.Identity.Cassandra.Store
             _findByName = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("SELECT * FROM users WHERE username = ? ALLOW FILTERING"));
             
             _addLogin = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
-                "INSERT INTO logins (Id, userId, LoginProvider, ProviderKey) VALUES (?, ?, ?, ?)"));
+                "INSERT INTO logins (userId, LoginProvider, ProviderKey) VALUES (?, ?, ?)"));
             _removeLogin = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
                 "DELETE FROM logins WHERE userId = ? and loginprovider = ? and providerkey = ?"));
             _getLogins = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("SELECT * FROM logins WHERE userId = ?"));
@@ -69,7 +71,7 @@ namespace AspNet.Identity.Cassandra.Store
 
             _getClaims = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("SELECT * FROM claims WHERE userId = ? ALLOW FILTERING"));
             _addClaim = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
-                "INSERT INTO claims (Id, UserId, Issuer, OriginalIssuer, Type, Value, ValueType) VALUES (?, ?, ?, ?, ?, ?, ?)"));
+                "INSERT INTO claims (UserId, Issuer, OriginalIssuer, Type, Value, ValueType) VALUES (?, ?, ?, ?, ?, ?, ?)"));
             _removeClaim = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
                 "DELETE FROM claims WHERE userId = ? AND value = ? AND type = ?"));
         }
@@ -81,7 +83,7 @@ namespace AspNet.Identity.Cassandra.Store
                 throw new ArgumentNullException("user");
             }
             PreparedStatement prepared = await _createUser;
-            BoundStatement bound = prepared.Bind(CassandraUser.GenerateKey(user.UserName), user.UserName, user.PasswordHash, user.SecurityStamp,
+            BoundStatement bound = prepared.Bind(user.UserName, user.UserName, user.PasswordHash, user.SecurityStamp,
                                                  user.IsLockoutEnabled, user.IsTwoFactorEnabled, user.Email, user.AccessFailedCount,
                                                  user.LockoutEndDate, user.PhoneNumber);
             await _session.ExecuteAsync(bound).ConfigureAwait(false);
@@ -154,9 +156,9 @@ namespace AspNet.Identity.Cassandra.Store
         {
             if (row == null)
                 return new CassandraUser();
+
             var user = new CassandraUser
             {
-                Id = row.GetValue<string>("id"),
                 PasswordHash = row.GetValue<string>("passwordhash"),
                 SecurityStamp = row.GetValue<string>("securitystamp"),
                 UserName = row.GetValue<string>("username"),
@@ -176,8 +178,7 @@ namespace AspNet.Identity.Cassandra.Store
             if (login == null) throw new ArgumentNullException("login");
 
             PreparedStatement prepared = await _addLogin;
-            BoundStatement bound = prepared.Bind(CassandraUserLogin.GenerateKey(login.LoginProvider, login.ProviderKey), user.Id, login.LoginProvider,
-                                                 login.ProviderKey);
+            BoundStatement bound = prepared.Bind(user.Id, login.LoginProvider, login.ProviderKey);
 
             await _session.ExecuteAsync(bound).ConfigureAwait(false);
         }
@@ -242,8 +243,7 @@ namespace AspNet.Identity.Cassandra.Store
             if (claim == null) throw new ArgumentNullException("claim");
 
             PreparedStatement prepared = await _addClaim;
-            BoundStatement bound = prepared.Bind(CassandraUserClaim.GenerateKey(user.Id, claim.Issuer, claim.Type), user.Id,
-                                                 claim.Issuer, claim.OriginalIssuer, claim.Type, claim.Value, claim.ValueType);
+            BoundStatement bound = prepared.Bind(user.Id, claim.Issuer, claim.OriginalIssuer, claim.Type, claim.Value, claim.ValueType);
             await _session.ExecuteAsync(bound).ConfigureAwait(false);
         }
 

@@ -9,8 +9,7 @@ using Microsoft.AspNet.Identity;
 
 namespace AspNet.Identity.Cassandra.Store
 {
-    public class CassandraUserStore<TUser, TKey> : IUserStore<TUser, TKey>, IUserLoginStore<TUser, TKey>
-        // IUserClaimStore<TUser>,
+    public class CassandraUserStore<TUser, TKey> : IUserStore<TUser, TKey>, IUserLoginStore<TUser, TKey>, IUserClaimStore<TUser, TKey>
         // IUserPasswordStore<TUser>,
         // IUserSecurityStampStore<TUser>,
         // IQueryableUserStore<TUser>,
@@ -38,7 +37,7 @@ namespace AspNet.Identity.Cassandra.Store
 
         private readonly AsyncLazy<PreparedStatement> _getClaims;
         private readonly AsyncLazy<PreparedStatement> _addClaim;
-        private readonly AsyncLazy<PreparedStatement> _removeClaim; 
+        private readonly AsyncLazy<PreparedStatement> _removeClaim;
 
         public IQueryable<TUser> Users { get; private set; }
 
@@ -79,11 +78,11 @@ namespace AspNet.Identity.Cassandra.Store
             _getLoginsByProvider = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
                 "SELECT * FROM logins WHERE login_provider = ? AND provider_key = ?"));
 
-            _getClaims = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("SELECT * FROM claims WHERE userId = ? ALLOW FILTERING"));
+            _getClaims = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("SELECT * FROM claims WHERE userId = ?"));
             _addClaim = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
-                "INSERT INTO claims (UserId, Issuer, OriginalIssuer, Type, Value, ValueType) VALUES (?, ?, ?, ?, ?, ?, ?)"));
+                "INSERT INTO claims (userid, type, value) VALUES (?, ?, ?)"));
             _removeClaim = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
-                "DELETE FROM claims WHERE userId = ? AND value = ? AND type = ?"));
+                "DELETE FROM claims WHERE userId = ? AND type = ? AND value = ?"));
         }
 
         /// <summary>
@@ -253,6 +252,9 @@ namespace AspNet.Identity.Cassandra.Store
             return MapRowToCassandraUser(rows.SingleOrDefault());
         }
 
+        /// <summary>
+        /// Returns the claims for the user with the issuer set
+        /// </summary>
         public async Task<IList<Claim>> GetClaimsAsync(TUser user)
         {
             if (user == null) throw new ArgumentNullException("user");
@@ -261,27 +263,32 @@ namespace AspNet.Identity.Cassandra.Store
             BoundStatement bound = prepared.Bind(user.Id);
 
             RowSet rows = await _session.ExecuteAsync(bound).ConfigureAwait(false);
-            return rows.Select(row => new Claim(row.GetValue<string>("type"), row.GetValue<string>("value"), row.GetValue<string>("valuetype"),
-                                                row.GetValue<string>("issuer"), row.GetValue<string>("originalissuer"))).ToList();
+            return rows.Select(row => new Claim(row.GetValue<string>("type"), row.GetValue<string>("value"))).ToList();
         }
 
+        /// <summary>
+        /// Add a new user claim
+        /// </summary>
         public async Task AddClaimAsync(TUser user, Claim claim)
         {
             if (user == null) throw new ArgumentNullException("user");
             if (claim == null) throw new ArgumentNullException("claim");
 
             PreparedStatement prepared = await _addClaim;
-            BoundStatement bound = prepared.Bind(user.Id, claim.Issuer, claim.OriginalIssuer, claim.Type, claim.Value, claim.ValueType);
+            BoundStatement bound = prepared.Bind(user.Id, claim.Type, claim.Value);
             await _session.ExecuteAsync(bound).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Remove a user claim
+        /// </summary>
         public async Task RemoveClaimAsync(TUser user, Claim claim)
         {
             if (user == null) throw new ArgumentNullException("user");
             if (claim == null) throw new ArgumentNullException("claim");
 
             PreparedStatement prepared = await _removeClaim;
-            BoundStatement bound = prepared.Bind(user.Id, claim.Value, claim.Type);
+            BoundStatement bound = prepared.Bind(user.Id, claim.Type, claim.Value);
 
             await _session.ExecuteAsync(bound).ConfigureAwait(false);
         }

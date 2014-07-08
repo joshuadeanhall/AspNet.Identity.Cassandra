@@ -1,15 +1,15 @@
 // Users, keyed by user id
 CREATE TABLE users (
-	userid uuid,
-	username text,
-	PRIMARY KEY (userid)
+    userid uuid,
+    username text,
+    PRIMARY KEY (userid)
 );
 
 // Users, keyed by username
 CREATE TABLE users_by_username (
-	username text,
-	userid uuid,
-	PRIMARY KEY (username)
+    username text,
+    userid uuid,
+    PRIMARY KEY (username)
 );
 
 // Logins, keyed by user id
@@ -26,4 +26,12 @@ CREATE TABLE logins_by_provider (
     provider_key text,
     userid uuid,
     PRIMARY KEY ((login_provider, provider_key))
+);
+
+// Claims, keyed by user id
+CREATE TABLE claims (
+    userid uuid,
+    type text,
+    value text,
+    PRIMARY KEY (userid, type, value)
 );

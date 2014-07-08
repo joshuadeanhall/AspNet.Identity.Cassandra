@@ -1,11 +1,29 @@
+// Users, keyed by user id
 CREATE TABLE users (
-	id uuid,
+	userid uuid,
 	username text,
-	PRIMARY KEY (id)
+	PRIMARY KEY (userid)
 );
 
+// Users, keyed by username
 CREATE TABLE users_by_username (
 	username text,
-	id uuid,
+	userid uuid,
 	PRIMARY KEY (username)
+);
+
+// Logins, keyed by user id
+CREATE TABLE logins (
+    userid uuid,
+    login_provider text,
+    provider_key text,
+    PRIMARY KEY(userid, login_provider, provider_key)
+);
+
+// Logins, keyed by provider and provider key
+CREATE TABLE logins_by_provider (
+    login_provider text,
+    provider_key text,
+    userid uuid,
+    PRIMARY KEY ((login_provider, provider_key))
 );

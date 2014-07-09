@@ -9,21 +9,24 @@ using Microsoft.AspNet.Identity;
 
 namespace AspNet.Identity.Cassandra.Store
 {
-    public class CassandraUserStore : IUserStore<CassandraUser, Guid>, IUserLoginStore<CassandraUser, Guid>, IUserClaimStore<CassandraUser, Guid>
-        // IUserPasswordStore<TUser>,
+    public class CassandraUserStore : IUserStore<CassandraUser, Guid>, IUserLoginStore<CassandraUser, Guid>, IUserClaimStore<CassandraUser, Guid>,
+                                      IUserPasswordStore<CassandraUser, Guid>
         // IUserSecurityStampStore<TUser>,
         // IUserTwoFactorStore<TUser, string>,
         // IUserLockoutStore<TUser, string>,
         // IUserEmailStore<TUser>,
         // IUserPhoneNumberStore<TUser> 
     {
-        // A cached copy of a completed task
-        private static readonly Task CompletedTask = Task.FromResult(true);
+        // A cached copy of some completed task
+        private static readonly Task<bool> TrueTask = Task.FromResult(true);
+        private static readonly Task<bool> FalseTask = Task.FromResult(false);
+        private static readonly Task CompletedTask = TrueTask;
 
         private readonly ISession _session;
 
         // Reusable prepared statements, lazy evaluated
         private readonly AsyncLazy<PreparedStatement[]> _createUser;
+        private readonly AsyncLazy<PreparedStatement[]> _updateUser;
         private readonly AsyncLazy<PreparedStatement[]> _deleteUser;
         private readonly AsyncLazy<PreparedStatement> _findById;
         private readonly AsyncLazy<PreparedStatement> _findByName;
@@ -49,8 +52,13 @@ namespace AspNet.Identity.Cassandra.Store
             // Create some reusable prepared statements so we pay the cost of preparing once, then bind multiple times
             _createUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
             {
-                _session.PrepareAsync("INSERT INTO users (userid, username) VALUES (?, ?)"),
-                _session.PrepareAsync("INSERT INTO users_by_username (username, userid) VALUES (?, ?)")
+                _session.PrepareAsync("INSERT INTO users (userid, username, password_hash) VALUES (?, ?, ?)"),
+                _session.PrepareAsync("INSERT INTO users_by_username (username, userid, password_hash) VALUES (?, ?, ?)")
+            }));
+            _updateUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
+            {
+                _session.PrepareAsync("UPDATE users SET password_hash = ? WHERE userid = ?"),
+                _session.PrepareAsync("UPDATE users_by_username SET password_hash = ? WHERE username = ?")
             }));
             _deleteUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
             {
@@ -105,15 +113,22 @@ namespace AspNet.Identity.Cassandra.Store
         /// <summary>
         /// Update a user.
         /// </summary>
-        public Task UpdateAsync(CassandraUser user)
+        public async Task UpdateAsync(CassandraUser user)
         {
             if (user == null) throw new ArgumentNullException("user");
 
-            // Right now, since the only things being persisted for user are Id (which can't change) and username, which
-            // we currently assume can't change, this is a No-Op
-            // TODO:  Support updating username?
+            // TODO:  Currently we assume username will not change.  Support updating username?
 
-            return CompletedTask;
+            PreparedStatement[] prepared = await _updateUser;
+            var batch = new BatchStatement();
+
+            // UPDATE users ...
+            batch.Add(prepared[0].Bind(user.PasswordHash, user.Id));
+
+            // UPDATE users_by_username ...
+            batch.Add(prepared[1].Bind(user.PasswordHash, user.UserName));
+
+            await _session.ExecuteAsync(batch).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -168,7 +183,8 @@ namespace AspNet.Identity.Cassandra.Store
             return new CassandraUser
             {
                 Id = row.GetValue<Guid>("userid"),
-                UserName = row.GetValue<string>("username")
+                UserName = row.GetValue<string>("username"),
+                PasswordHash = row.GetValue<string>("password_hash")
             };
         }
 
@@ -289,27 +305,34 @@ namespace AspNet.Identity.Cassandra.Store
             await _session.ExecuteAsync(bound).ConfigureAwait(false);
         }
 
-        public Task SetPasswordHashAsync(TUser user, string passwordHash)
+        /// <summary>
+        /// Set the user password hash
+        /// </summary>
+        public Task SetPasswordHashAsync(CassandraUser user, string passwordHash)
         {
             if (user == null) throw new ArgumentNullException("user");
             if (passwordHash == null) throw new ArgumentNullException("passwordHash");
 
-            user.SetPasswordHash(passwordHash);
-            return Task.FromResult(0);
+            user.PasswordHash = passwordHash;
+            return CompletedTask;
         }
 
-        public Task<string> GetPasswordHashAsync(TUser user)
+        /// <summary>
+        /// Get the user password hash
+        /// </summary>
+        public Task<string> GetPasswordHashAsync(CassandraUser user)
         {
             if (user == null) throw new ArgumentNullException("user");
-
             return Task.FromResult(user.PasswordHash);
         }
 
-        public Task<bool> HasPasswordAsync(TUser user)
+        /// <summary>
+        /// Returns true if a user has a password set
+        /// </summary>
+        public Task<bool> HasPasswordAsync(CassandraUser user)
         {
             if (user == null) throw new ArgumentNullException("user");
-
-            return Task.FromResult(string.IsNullOrEmpty(user.PasswordHash) == false);
+            return string.IsNullOrEmpty(user.PasswordHash) ? FalseTask : TrueTask;
         }
 
         public Task SetSecurityStampAsync(TUser user, string stamp)

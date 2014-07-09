@@ -2,6 +2,7 @@
 CREATE TABLE users (
     userid uuid,
     username text,
+    password_hash text,
     PRIMARY KEY (userid)
 );
 
@@ -9,6 +10,7 @@ CREATE TABLE users (
 CREATE TABLE users_by_username (
     username text,
     userid uuid,
+    password_hash text,
     PRIMARY KEY (username)
 );
 

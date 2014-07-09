@@ -10,8 +10,8 @@ using Microsoft.AspNet.Identity;
 namespace AspNet.Identity.Cassandra.Store
 {
     public class CassandraUserStore : IUserStore<CassandraUser, Guid>, IUserLoginStore<CassandraUser, Guid>, IUserClaimStore<CassandraUser, Guid>,
-                                      IUserPasswordStore<CassandraUser, Guid>, IUserSecurityStampStore<CassandraUser, Guid>
-        // IUserTwoFactorStore<TUser, string>,
+                                      IUserPasswordStore<CassandraUser, Guid>, IUserSecurityStampStore<CassandraUser, Guid>,
+                                      IUserTwoFactorStore<CassandraUser, Guid>
         // IUserLockoutStore<TUser, string>,
         // IUserEmailStore<TUser>,
         // IUserPhoneNumberStore<TUser> 
@@ -51,13 +51,13 @@ namespace AspNet.Identity.Cassandra.Store
             // Create some reusable prepared statements so we pay the cost of preparing once, then bind multiple times
             _createUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
             {
-                _session.PrepareAsync("INSERT INTO users (userid, username, password_hash, security_stamp) VALUES (?, ?, ?, ?)"),
-                _session.PrepareAsync("INSERT INTO users_by_username (username, userid, password_hash, security_stamp) VALUES (?, ?, ?, ?)")
+                _session.PrepareAsync("INSERT INTO users (userid, username, password_hash, security_stamp, two_factor_enabled) VALUES (?, ?, ?, ?, ?)"),
+                _session.PrepareAsync("INSERT INTO users_by_username (username, userid, password_hash, security_stamp, two_factor_enabled) VALUES (?, ?, ?, ?, ?)")
             }));
             _updateUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
             {
-                _session.PrepareAsync("UPDATE users SET password_hash = ?, security_stamp = ? WHERE userid = ?"),
-                _session.PrepareAsync("UPDATE users_by_username SET password_hash = ?, security_stamp = ? WHERE username = ?")
+                _session.PrepareAsync("UPDATE users SET password_hash = ?, security_stamp = ?, two_factor_enabled = ? WHERE userid = ?"),
+                _session.PrepareAsync("UPDATE users_by_username SET password_hash = ?, security_stamp = ?, two_factor_enabled = ? WHERE username = ?")
             }));
             _deleteUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
             {
@@ -101,10 +101,10 @@ namespace AspNet.Identity.Cassandra.Store
             var batch = new BatchStatement();
 
             // INSERT INTO users ...
-            batch.Add(prepared[0].Bind(user.Id, user.UserName, user.PasswordHash, user.SecurityStamp));
+            batch.Add(prepared[0].Bind(user.Id, user.UserName, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled));
 
             // INSERT INTO users_by_username ...
-            batch.Add(prepared[1].Bind(user.UserName, user.Id, user.PasswordHash, user.SecurityStamp));
+            batch.Add(prepared[1].Bind(user.UserName, user.Id, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled));
 
             await _session.ExecuteAsync(batch).ConfigureAwait(false);
         }
@@ -122,10 +122,10 @@ namespace AspNet.Identity.Cassandra.Store
             var batch = new BatchStatement();
 
             // UPDATE users ...
-            batch.Add(prepared[0].Bind(user.PasswordHash, user.SecurityStamp, user.Id));
+            batch.Add(prepared[0].Bind(user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.Id));
 
             // UPDATE users_by_username ...
-            batch.Add(prepared[1].Bind(user.PasswordHash, user.SecurityStamp, user.UserName));
+            batch.Add(prepared[1].Bind(user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.UserName));
 
             await _session.ExecuteAsync(batch).ConfigureAwait(false);
         }
@@ -184,7 +184,8 @@ namespace AspNet.Identity.Cassandra.Store
                 Id = row.GetValue<Guid>("userid"),
                 UserName = row.GetValue<string>("username"),
                 PasswordHash = row.GetValue<string>("password_hash"),
-                SecurityStamp = row.GetValue<string>("security_stamp")
+                SecurityStamp = row.GetValue<string>("security_stamp"),
+                IsTwoFactorEnabled = row.GetValue<bool>("two_factor_enabled")
             };
         }
 
@@ -356,18 +357,23 @@ namespace AspNet.Identity.Cassandra.Store
             return Task.FromResult(user.SecurityStamp);
         }
 
-        public Task SetTwoFactorEnabledAsync(TUser user, bool enabled)
+        /// <summary>
+        /// Sets whether two factor authentication is enabled for the user
+        /// </summary>
+        public Task SetTwoFactorEnabledAsync(CassandraUser user, bool enabled)
         {
             if (user == null) throw new ArgumentNullException("user");
 
             user.IsTwoFactorEnabled = enabled;
-            return Task.FromResult(0);
+            return CompletedTask;
         }
 
-        public Task<bool> GetTwoFactorEnabledAsync(TUser user)
+        /// <summary>
+        /// Returns whether two factor authentication is enabled for the user
+        /// </summary>
+        public Task<bool> GetTwoFactorEnabledAsync(CassandraUser user)
         {
             if (user == null) throw new ArgumentNullException("user");
-
             return Task.FromResult(user.IsTwoFactorEnabled);
         }
 

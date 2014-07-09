@@ -27,5 +27,10 @@ namespace AspNet.Identity.Cassandra.Entities
         /// The security stamp for the user.
         /// </summary>
         internal string SecurityStamp { get; set; }
+
+        /// <summary>
+        /// Whether or not two factor authentication is enabled for the user.
+        /// </summary>
+        internal bool IsTwoFactorEnabled { get; set; }
     }
 }

@@ -10,8 +10,7 @@ using Microsoft.AspNet.Identity;
 namespace AspNet.Identity.Cassandra.Store
 {
     public class CassandraUserStore : IUserStore<CassandraUser, Guid>, IUserLoginStore<CassandraUser, Guid>, IUserClaimStore<CassandraUser, Guid>,
-                                      IUserPasswordStore<CassandraUser, Guid>
-        // IUserSecurityStampStore<TUser>,
+                                      IUserPasswordStore<CassandraUser, Guid>, IUserSecurityStampStore<CassandraUser, Guid>
         // IUserTwoFactorStore<TUser, string>,
         // IUserLockoutStore<TUser, string>,
         // IUserEmailStore<TUser>,
@@ -52,13 +51,13 @@ namespace AspNet.Identity.Cassandra.Store
             // Create some reusable prepared statements so we pay the cost of preparing once, then bind multiple times
             _createUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
             {
-                _session.PrepareAsync("INSERT INTO users (userid, username, password_hash) VALUES (?, ?, ?)"),
-                _session.PrepareAsync("INSERT INTO users_by_username (username, userid, password_hash) VALUES (?, ?, ?)")
+                _session.PrepareAsync("INSERT INTO users (userid, username, password_hash, security_stamp) VALUES (?, ?, ?, ?)"),
+                _session.PrepareAsync("INSERT INTO users_by_username (username, userid, password_hash, security_stamp) VALUES (?, ?, ?, ?)")
             }));
             _updateUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
             {
-                _session.PrepareAsync("UPDATE users SET password_hash = ? WHERE userid = ?"),
-                _session.PrepareAsync("UPDATE users_by_username SET password_hash = ? WHERE username = ?")
+                _session.PrepareAsync("UPDATE users SET password_hash = ?, security_stamp = ? WHERE userid = ?"),
+                _session.PrepareAsync("UPDATE users_by_username SET password_hash = ?, security_stamp = ? WHERE username = ?")
             }));
             _deleteUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
             {
@@ -102,10 +101,10 @@ namespace AspNet.Identity.Cassandra.Store
             var batch = new BatchStatement();
 
             // INSERT INTO users ...
-            batch.Add(prepared[0].Bind(user.Id, user.UserName));
+            batch.Add(prepared[0].Bind(user.Id, user.UserName, user.PasswordHash, user.SecurityStamp));
 
             // INSERT INTO users_by_username ...
-            batch.Add(prepared[1].Bind(user.UserName, user.Id));
+            batch.Add(prepared[1].Bind(user.UserName, user.Id, user.PasswordHash, user.SecurityStamp));
 
             await _session.ExecuteAsync(batch).ConfigureAwait(false);
         }
@@ -123,10 +122,10 @@ namespace AspNet.Identity.Cassandra.Store
             var batch = new BatchStatement();
 
             // UPDATE users ...
-            batch.Add(prepared[0].Bind(user.PasswordHash, user.Id));
+            batch.Add(prepared[0].Bind(user.PasswordHash, user.SecurityStamp, user.Id));
 
             // UPDATE users_by_username ...
-            batch.Add(prepared[1].Bind(user.PasswordHash, user.UserName));
+            batch.Add(prepared[1].Bind(user.PasswordHash, user.SecurityStamp, user.UserName));
 
             await _session.ExecuteAsync(batch).ConfigureAwait(false);
         }
@@ -184,7 +183,8 @@ namespace AspNet.Identity.Cassandra.Store
             {
                 Id = row.GetValue<Guid>("userid"),
                 UserName = row.GetValue<string>("username"),
-                PasswordHash = row.GetValue<string>("password_hash")
+                PasswordHash = row.GetValue<string>("password_hash"),
+                SecurityStamp = row.GetValue<string>("security_stamp")
             };
         }
 
@@ -335,19 +335,24 @@ namespace AspNet.Identity.Cassandra.Store
             return string.IsNullOrEmpty(user.PasswordHash) ? FalseTask : TrueTask;
         }
 
-        public Task SetSecurityStampAsync(TUser user, string stamp)
+        /// <summary>
+        /// Set the security stamp for the user
+        /// </summary>
+        public Task SetSecurityStampAsync(CassandraUser user, string stamp)
         {
             if (user == null) throw new ArgumentNullException("user");
             if (stamp == null) throw new ArgumentNullException("stamp");
 
-            user.SetSecurityStamp(stamp);
-            return Task.FromResult(0);
+            user.SecurityStamp = stamp;
+            return CompletedTask;
         }
 
-        public Task<string> GetSecurityStampAsync(TUser user)
+        /// <summary>
+        /// Get the user security stamp
+        /// </summary>
+        public Task<string> GetSecurityStampAsync(CassandraUser user)
         {
             if (user == null) throw new ArgumentNullException("user");
-
             return Task.FromResult(user.SecurityStamp);
         }
 

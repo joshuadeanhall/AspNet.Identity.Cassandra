@@ -22,5 +22,10 @@ namespace AspNet.Identity.Cassandra.Entities
         /// The password hash for the user.
         /// </summary>
         internal string PasswordHash { get; set; }
+
+        /// <summary>
+        /// The security stamp for the user.
+        /// </summary>
+        internal string SecurityStamp { get; set; }
     }
 }

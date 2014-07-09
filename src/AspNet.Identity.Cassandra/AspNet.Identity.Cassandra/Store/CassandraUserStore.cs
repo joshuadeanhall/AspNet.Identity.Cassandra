@@ -12,7 +12,6 @@ namespace AspNet.Identity.Cassandra.Store
     public class CassandraUserStore : IUserStore<CassandraUser, Guid>, IUserLoginStore<CassandraUser, Guid>, IUserClaimStore<CassandraUser, Guid>
         // IUserPasswordStore<TUser>,
         // IUserSecurityStampStore<TUser>,
-        // IQueryableUserStore<TUser>,
         // IUserTwoFactorStore<TUser, string>,
         // IUserLockoutStore<TUser, string>,
         // IUserEmailStore<TUser>,
@@ -37,8 +36,6 @@ namespace AspNet.Identity.Cassandra.Store
         private readonly AsyncLazy<PreparedStatement> _getClaims;
         private readonly AsyncLazy<PreparedStatement> _addClaim;
         private readonly AsyncLazy<PreparedStatement> _removeClaim;
-
-        public IQueryable<TUser> Users { get; private set; }
 
         public CassandraUserStore(ISession session)
         {

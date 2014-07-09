@@ -9,7 +9,7 @@ using Microsoft.AspNet.Identity;
 
 namespace AspNet.Identity.Cassandra.Store
 {
-    public class CassandraUserStore<TUser, TKey> : IUserStore<TUser, TKey>, IUserLoginStore<TUser, TKey>, IUserClaimStore<TUser, TKey>
+    public class CassandraUserStore : IUserStore<CassandraUser, Guid>, IUserLoginStore<CassandraUser, Guid>, IUserClaimStore<CassandraUser, Guid>
         // IUserPasswordStore<TUser>,
         // IUserSecurityStampStore<TUser>,
         // IQueryableUserStore<TUser>,
@@ -17,7 +17,6 @@ namespace AspNet.Identity.Cassandra.Store
         // IUserLockoutStore<TUser, string>,
         // IUserEmailStore<TUser>,
         // IUserPhoneNumberStore<TUser> 
-        where TUser : CassandraUser<TKey>, new ()
     {
         // A cached copy of a completed task
         private static readonly Task CompletedTask = Task.FromResult(true);
@@ -88,7 +87,7 @@ namespace AspNet.Identity.Cassandra.Store
         /// <summary>
         /// Insert a new user.
         /// </summary>
-        public async Task CreateAsync(TUser user)
+        public async Task CreateAsync(CassandraUser user)
         {
             if (user == null) throw new ArgumentNullException("user");
 
@@ -109,7 +108,7 @@ namespace AspNet.Identity.Cassandra.Store
         /// <summary>
         /// Update a user.
         /// </summary>
-        public Task UpdateAsync(TUser user)
+        public Task UpdateAsync(CassandraUser user)
         {
             if (user == null) throw new ArgumentNullException("user");
 
@@ -123,7 +122,7 @@ namespace AspNet.Identity.Cassandra.Store
         /// <summary>
         /// Delete a user.
         /// </summary>
-        public async Task DeleteAsync(TUser user)
+        public async Task DeleteAsync(CassandraUser user)
         {
             if (user == null) throw new ArgumentNullException("user");
 
@@ -142,7 +141,7 @@ namespace AspNet.Identity.Cassandra.Store
         /// <summary>
         /// Finds a user by userId.
         /// </summary>
-        public async Task<TUser> FindByIdAsync(TKey userId)
+        public async Task<CassandraUser> FindByIdAsync(Guid userId)
         {
             PreparedStatement prepared = await _findById;
             BoundStatement bound = prepared.Bind(userId);
@@ -154,7 +153,7 @@ namespace AspNet.Identity.Cassandra.Store
         /// <summary>
         /// Find a user by name (assumes usernames are unique).
         /// </summary>
-        public async Task<TUser> FindByNameAsync(string userName)
+        public async Task<CassandraUser> FindByNameAsync(string userName)
         {
             if (string.IsNullOrWhiteSpace(userName)) throw new ArgumentException("userName cannot be null or empty", "userName");
             
@@ -165,13 +164,13 @@ namespace AspNet.Identity.Cassandra.Store
             return MapRowToCassandraUser(rows.SingleOrDefault());
         }
 
-        private static TUser MapRowToCassandraUser(Row row)
+        private static CassandraUser MapRowToCassandraUser(Row row)
         {
             if (row == null) return null;
 
-            return new TUser
+            return new CassandraUser
             {
-                Id = row.GetValue<TKey>("userid"),
+                Id = row.GetValue<Guid>("userid"),
                 UserName = row.GetValue<string>("username")
             };
         }
@@ -179,7 +178,7 @@ namespace AspNet.Identity.Cassandra.Store
         /// <summary>
         /// Adds a user login with the specified provider and key
         /// </summary>
-        public async Task AddLoginAsync(TUser user, UserLoginInfo login)
+        public async Task AddLoginAsync(CassandraUser user, UserLoginInfo login)
         {
             if (user == null) throw new ArgumentNullException("user");
             if (login == null) throw new ArgumentNullException("login");
@@ -199,7 +198,7 @@ namespace AspNet.Identity.Cassandra.Store
         /// <summary>
         /// Removes the user login with the specified combination if it exists
         /// </summary>
-        public async Task RemoveLoginAsync(TUser user, UserLoginInfo login)
+        public async Task RemoveLoginAsync(CassandraUser user, UserLoginInfo login)
         {
             if (user == null) throw new ArgumentNullException("user");
             if (login == null) throw new ArgumentNullException("login");
@@ -219,7 +218,7 @@ namespace AspNet.Identity.Cassandra.Store
         /// <summary>
         /// Returns the linked accounts for this user
         /// </summary>
-        public async Task<IList<UserLoginInfo>> GetLoginsAsync(TUser user)
+        public async Task<IList<UserLoginInfo>> GetLoginsAsync(CassandraUser user)
         {
             if (user == null) throw new ArgumentNullException("user");
 
@@ -233,7 +232,7 @@ namespace AspNet.Identity.Cassandra.Store
         /// <summary>
         /// Returns the user associated with this login
         /// </summary>
-        public async Task<TUser> FindAsync(UserLoginInfo login)
+        public async Task<CassandraUser> FindAsync(UserLoginInfo login)
         {
             if (login == null) throw new ArgumentNullException("login");
 
@@ -246,7 +245,7 @@ namespace AspNet.Identity.Cassandra.Store
                 return null;
 
             prepared = await _findById;
-            bound = prepared.Bind(loginResult.GetValue<TKey>("userid"));
+            bound = prepared.Bind(loginResult.GetValue<Guid>("userid"));
 
             RowSet rows = await _session.ExecuteAsync(bound).ConfigureAwait(false);
             return MapRowToCassandraUser(rows.SingleOrDefault());
@@ -255,7 +254,7 @@ namespace AspNet.Identity.Cassandra.Store
         /// <summary>
         /// Returns the claims for the user with the issuer set
         /// </summary>
-        public async Task<IList<Claim>> GetClaimsAsync(TUser user)
+        public async Task<IList<Claim>> GetClaimsAsync(CassandraUser user)
         {
             if (user == null) throw new ArgumentNullException("user");
 
@@ -269,7 +268,7 @@ namespace AspNet.Identity.Cassandra.Store
         /// <summary>
         /// Add a new user claim
         /// </summary>
-        public async Task AddClaimAsync(TUser user, Claim claim)
+        public async Task AddClaimAsync(CassandraUser user, Claim claim)
         {
             if (user == null) throw new ArgumentNullException("user");
             if (claim == null) throw new ArgumentNullException("claim");
@@ -282,7 +281,7 @@ namespace AspNet.Identity.Cassandra.Store
         /// <summary>
         /// Remove a user claim
         /// </summary>
-        public async Task RemoveClaimAsync(TUser user, Claim claim)
+        public async Task RemoveClaimAsync(CassandraUser user, Claim claim)
         {
             if (user == null) throw new ArgumentNullException("user");
             if (claim == null) throw new ArgumentNullException("claim");

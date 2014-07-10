@@ -4,7 +4,10 @@ CREATE TABLE users (
     username text,
     password_hash text,
     security_stamp text,
-    two_factor_enabled bool,
+    two_factor_enabled boolean,
+    access_failed_count int,
+    lockout_enabled boolean,
+    lockout_end_date timestamp,
     PRIMARY KEY (userid)
 );
 
@@ -14,7 +17,10 @@ CREATE TABLE users_by_username (
     userid uuid,
     password_hash text,
     security_stamp text,
-    two_factor_enabled bool,
+    two_factor_enabled boolean,
+    access_failed_count int,
+    lockout_enabled boolean,
+    lockout_end_date timestamp,
     PRIMARY KEY (username)
 );
 

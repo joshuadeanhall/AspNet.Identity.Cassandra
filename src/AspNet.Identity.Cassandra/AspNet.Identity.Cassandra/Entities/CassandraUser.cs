@@ -32,5 +32,21 @@ namespace AspNet.Identity.Cassandra.Entities
         /// Whether or not two factor authentication is enabled for the user.
         /// </summary>
         internal bool IsTwoFactorEnabled { get; set; }
+
+        /// <summary>
+        /// The number of times the user has tried and failed to login.
+        /// </summary>
+        internal int AccessFailedCount { get; set; }
+
+        /// <summary>
+        /// Whether or not lockout is enabled for the user.
+        /// </summary>
+        internal bool IsLockoutEnabled { get; set; }
+
+        /// <summary>
+        /// When the user's lockout period will end.
+        /// </summary>
+        internal DateTimeOffset LockoutEndDate { get; set; }
+
     }
 }

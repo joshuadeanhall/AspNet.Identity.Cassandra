@@ -11,8 +11,7 @@ namespace AspNet.Identity.Cassandra.Store
 {
     public class CassandraUserStore : IUserStore<CassandraUser, Guid>, IUserLoginStore<CassandraUser, Guid>, IUserClaimStore<CassandraUser, Guid>,
                                       IUserPasswordStore<CassandraUser, Guid>, IUserSecurityStampStore<CassandraUser, Guid>,
-                                      IUserTwoFactorStore<CassandraUser, Guid>
-        // IUserLockoutStore<TUser, string>,
+                                      IUserTwoFactorStore<CassandraUser, Guid>, IUserLockoutStore<CassandraUser, Guid>
         // IUserEmailStore<TUser>,
         // IUserPhoneNumberStore<TUser> 
     {
@@ -51,13 +50,17 @@ namespace AspNet.Identity.Cassandra.Store
             // Create some reusable prepared statements so we pay the cost of preparing once, then bind multiple times
             _createUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
             {
-                _session.PrepareAsync("INSERT INTO users (userid, username, password_hash, security_stamp, two_factor_enabled) VALUES (?, ?, ?, ?, ?)"),
-                _session.PrepareAsync("INSERT INTO users_by_username (username, userid, password_hash, security_stamp, two_factor_enabled) VALUES (?, ?, ?, ?, ?)")
+                _session.PrepareAsync("INSERT INTO users (userid, username, password_hash, security_stamp, two_factor_enabled, access_failed_count, " +
+                                      "lockout_enabled, lockout_end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"),
+                _session.PrepareAsync("INSERT INTO users_by_username (username, userid, password_hash, security_stamp, two_factor_enabled, access_failed_count, " +
+                                      "lockout_enabled, lockout_end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
             }));
             _updateUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
             {
-                _session.PrepareAsync("UPDATE users SET password_hash = ?, security_stamp = ?, two_factor_enabled = ? WHERE userid = ?"),
-                _session.PrepareAsync("UPDATE users_by_username SET password_hash = ?, security_stamp = ?, two_factor_enabled = ? WHERE username = ?")
+                _session.PrepareAsync("UPDATE users SET password_hash = ?, security_stamp = ?, two_factor_enabled = ?, access_failed_count = ?, " +
+                                      "lockout_enabled = ?, lockout_end_date = ? WHERE userid = ?"),
+                _session.PrepareAsync("UPDATE users_by_username SET password_hash = ?, security_stamp = ?, two_factor_enabled = ?, access_failed_count = ?, " +
+                                      "lockout_enabled = ?, lockout_end_date = ? WHERE username = ?")
             }));
             _deleteUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
             {
@@ -101,10 +104,12 @@ namespace AspNet.Identity.Cassandra.Store
             var batch = new BatchStatement();
 
             // INSERT INTO users ...
-            batch.Add(prepared[0].Bind(user.Id, user.UserName, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled));
+            batch.Add(prepared[0].Bind(user.Id, user.UserName, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.AccessFailedCount,
+                                       user.IsLockoutEnabled, user.LockoutEndDate));
 
             // INSERT INTO users_by_username ...
-            batch.Add(prepared[1].Bind(user.UserName, user.Id, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled));
+            batch.Add(prepared[1].Bind(user.UserName, user.Id, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.AccessFailedCount,
+                                       user.IsLockoutEnabled, user.LockoutEndDate));
 
             await _session.ExecuteAsync(batch).ConfigureAwait(false);
         }
@@ -122,10 +127,12 @@ namespace AspNet.Identity.Cassandra.Store
             var batch = new BatchStatement();
 
             // UPDATE users ...
-            batch.Add(prepared[0].Bind(user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.Id));
+            batch.Add(prepared[0].Bind(user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.AccessFailedCount, user.IsLockoutEnabled,
+                                       user.LockoutEndDate, user.Id));
 
             // UPDATE users_by_username ...
-            batch.Add(prepared[1].Bind(user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.UserName));
+            batch.Add(prepared[1].Bind(user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.AccessFailedCount, user.IsLockoutEnabled,
+                                       user.LockoutEndDate, user.UserName));
 
             await _session.ExecuteAsync(batch).ConfigureAwait(false);
         }
@@ -185,7 +192,10 @@ namespace AspNet.Identity.Cassandra.Store
                 UserName = row.GetValue<string>("username"),
                 PasswordHash = row.GetValue<string>("password_hash"),
                 SecurityStamp = row.GetValue<string>("security_stamp"),
-                IsTwoFactorEnabled = row.GetValue<bool>("two_factor_enabled")
+                IsTwoFactorEnabled = row.GetValue<bool>("two_factor_enabled"),
+                AccessFailedCount = row.GetValue<int>("access_failed_count"),
+                IsLockoutEnabled = row.GetValue<bool>("lockout_enabled"),
+                LockoutEndDate = row.GetValue<DateTimeOffset>("lockout_end_date")
             };
         }
 
@@ -377,58 +387,82 @@ namespace AspNet.Identity.Cassandra.Store
             return Task.FromResult(user.IsTwoFactorEnabled);
         }
 
-        public Task<DateTimeOffset> GetLockoutEndDateAsync(TUser user)
+        /// <summary>
+        /// Returns the DateTimeOffset that represents the end of a user's lockout, any time in the past should be considered
+        /// not locked out.
+        /// </summary>
+        public Task<DateTimeOffset> GetLockoutEndDateAsync(CassandraUser user)
         {
             if (user == null) throw new ArgumentNullException("user");
-            if(user.LockoutEndDate == null) throw new InvalidOperationException("LockoutEndDate has no value.");
-
-            return Task.FromResult(user.LockoutEndDate.Value);
+            return Task.FromResult(user.LockoutEndDate);
         }
 
-        public Task SetLockoutEndDateAsync(TUser user, DateTimeOffset lockoutEnd)
+        /// <summary>
+        /// Locks a user out until the specified end date (set to a past date, to unlock a user)
+        /// </summary>
+        public Task SetLockoutEndDateAsync(CassandraUser user, DateTimeOffset lockoutEnd)
         {
             if (user == null) throw new ArgumentNullException("user");
 
             user.LockoutEndDate = lockoutEnd;
-            return Task.FromResult(0);
+            return CompletedTask;
         }
 
-        public Task<int> IncrementAccessFailedCountAsync(TUser user)
+        /// <summary>
+        /// Used to record when an attempt to access the user has failed
+        /// </summary>
+        public Task<int> IncrementAccessFailedCountAsync(CassandraUser user)
         {
             if (user == null) throw new ArgumentNullException("user");
 
+            // NOTE:  Since we aren't using C* counters and an increment operation, the value for the counter we loaded could be stale when we
+            // increment this way and so the count could be incorrect (i.e. this increment in not atomic)
             user.AccessFailedCount++;
-            return Task.FromResult(0);
+            return Task.FromResult(user.AccessFailedCount);
         }
 
-        public Task ResetAccessFailedCountAsync(TUser user)
+        /// <summary>
+        /// Used to reset the access failed count, typically after the account is successfully accessed
+        /// </summary>
+        public Task ResetAccessFailedCountAsync(CassandraUser user)
         {
             if (user == null) throw new ArgumentNullException("user");
 
+            // Same note as above in Increment applies here
             user.AccessFailedCount = 0;
-            return Task.FromResult(0);
+            return CompletedTask;
         }
 
-        public Task<int> GetAccessFailedCountAsync(TUser user)
+        /// <summary>
+        /// Returns the current number of failed access attempts.  This number usually will be reset whenever the password is
+        /// verified or the account is locked out.
+        /// </summary>
+        public Task<int> GetAccessFailedCountAsync(CassandraUser user)
         {
             if (user == null) throw new ArgumentNullException("user");
 
             return Task.FromResult(user.AccessFailedCount);
         }
 
-        public Task<bool> GetLockoutEnabledAsync(TUser user)
+        /// <summary>
+        /// Returns whether the user can be locked out.
+        /// </summary>
+        public Task<bool> GetLockoutEnabledAsync(CassandraUser user)
         {
             if (user == null) throw new ArgumentNullException("user");
 
             return Task.FromResult(user.IsLockoutEnabled);
         }
 
-        public Task SetLockoutEnabledAsync(TUser user, bool enabled)
+        /// <summary>
+        /// Sets whether the user can be locked out.
+        /// </summary>
+        public Task SetLockoutEnabledAsync(CassandraUser user, bool enabled)
         {
             if (user == null) throw new ArgumentNullException("user");
 
             user.IsLockoutEnabled = enabled;
-            return Task.FromResult(0);
+            return CompletedTask;
         }
 
         public Task SetEmailAsync(TUser user, string email)

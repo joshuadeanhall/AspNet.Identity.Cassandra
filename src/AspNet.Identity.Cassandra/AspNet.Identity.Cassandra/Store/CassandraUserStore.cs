@@ -20,6 +20,7 @@ namespace AspNet.Identity.Cassandra.Store
         private static readonly Task CompletedTask = TrueTask;
 
         private readonly ISession _session;
+        private readonly bool _disposeOfSession;
 
         // Reusable prepared statements, lazy evaluated
         private readonly AsyncLazy<PreparedStatement> _createUserByUserName;
@@ -44,9 +45,10 @@ namespace AspNet.Identity.Cassandra.Store
         private readonly AsyncLazy<PreparedStatement> _addClaim;
         private readonly AsyncLazy<PreparedStatement> _removeClaim;
         
-        public CassandraUserStore(ISession session)
+        public CassandraUserStore(ISession session, bool disposeOfSession = false)
         {
             _session = session;
+            _disposeOfSession = disposeOfSession;
 
             // TODO:  Currently broken because no attributes on POCOs
             // _session.GetTable<CassandraUser>().CreateIfNotExists();
@@ -636,7 +638,8 @@ namespace AspNet.Identity.Cassandra.Store
         
         protected void Dispose(bool disposing)
         {
-            _session.Dispose();
+            if (_disposeOfSession)
+                _session.Dispose();
         }
 
         public void Dispose()

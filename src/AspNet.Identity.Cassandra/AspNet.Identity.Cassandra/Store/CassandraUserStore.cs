@@ -171,7 +171,7 @@ namespace AspNet.Identity.Cassandra.Store
             BoundStatement bound = prepared.Bind(userId);
 
             RowSet rows = await _session.ExecuteAsync(bound).ConfigureAwait(false);
-            return MapRowToCassandraUser(rows.SingleOrDefault());
+            return CassandraUser.FromRow(rows.SingleOrDefault());
         }
 
         /// <summary>
@@ -185,30 +185,9 @@ namespace AspNet.Identity.Cassandra.Store
             BoundStatement bound = prepared.Bind(userName);
 
             RowSet rows = await _session.ExecuteAsync(bound).ConfigureAwait(false);
-            return MapRowToCassandraUser(rows.SingleOrDefault());
+            return CassandraUser.FromRow(rows.SingleOrDefault());
         }
-
-        private static CassandraUser MapRowToCassandraUser(Row row)
-        {
-            if (row == null) return null;
-
-            return new CassandraUser
-            {
-                Id = row.GetValue<Guid>("userid"),
-                UserName = row.GetValue<string>("username"),
-                PasswordHash = row.GetValue<string>("password_hash"),
-                SecurityStamp = row.GetValue<string>("security_stamp"),
-                IsTwoFactorEnabled = row.GetValue<bool>("two_factor_enabled"),
-                AccessFailedCount = row.GetValue<int>("access_failed_count"),
-                IsLockoutEnabled = row.GetValue<bool>("lockout_enabled"),
-                LockoutEndDate = row.GetValue<DateTimeOffset>("lockout_end_date"),
-                PhoneNumber = row.GetValue<string>("phone_number"),
-                IsPhoneNumberConfirmed = row.GetValue<bool>("phone_number_confirmed"),
-                Email = row.GetValue<string>("email"),
-                IsEmailConfirmed = row.GetValue<bool>("email_confirmed")
-            };
-        }
-
+        
         /// <summary>
         /// Adds a user login with the specified provider and key
         /// </summary>
@@ -282,7 +261,7 @@ namespace AspNet.Identity.Cassandra.Store
             bound = prepared.Bind(loginResult.GetValue<Guid>("userid"));
 
             RowSet rows = await _session.ExecuteAsync(bound).ConfigureAwait(false);
-            return MapRowToCassandraUser(rows.SingleOrDefault());
+            return CassandraUser.FromRow(rows.SingleOrDefault());
         }
 
         /// <summary>

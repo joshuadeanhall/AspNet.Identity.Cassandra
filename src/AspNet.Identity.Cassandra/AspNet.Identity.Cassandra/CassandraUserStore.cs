@@ -3,11 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using AspNet.Identity.Cassandra.Entities;
 using Cassandra;
 using Microsoft.AspNet.Identity;
 
-namespace AspNet.Identity.Cassandra.Store
+namespace AspNet.Identity.Cassandra
 {
     public class CassandraUserStore : IUserStore<CassandraUser, Guid>, IUserLoginStore<CassandraUser, Guid>, IUserClaimStore<CassandraUser, Guid>,
                                       IUserPasswordStore<CassandraUser, Guid>, IUserSecurityStampStore<CassandraUser, Guid>,

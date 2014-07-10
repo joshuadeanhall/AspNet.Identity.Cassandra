@@ -2,7 +2,7 @@
 using Cassandra;
 using Microsoft.AspNet.Identity;
 
-namespace AspNet.Identity.Cassandra.Entities
+namespace AspNet.Identity.Cassandra
 {
     /// <summary>
     /// Represents a user.

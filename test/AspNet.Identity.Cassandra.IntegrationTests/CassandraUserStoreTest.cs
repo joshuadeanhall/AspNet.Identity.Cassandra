@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Security.Claims;
-using AspNet.Identity.Cassandra.Entities;
-using AspNet.Identity.Cassandra.Store;
 using Cassandra;
 using Microsoft.AspNet.Identity;
 using NUnit.Framework;

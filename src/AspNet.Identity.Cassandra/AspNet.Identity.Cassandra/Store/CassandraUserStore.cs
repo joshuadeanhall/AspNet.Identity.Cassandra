@@ -14,7 +14,7 @@ namespace AspNet.Identity.Cassandra.Store
                                       IUserTwoFactorStore<CassandraUser, Guid>, IUserLockoutStore<CassandraUser, Guid>, 
                                       IUserPhoneNumberStore<CassandraUser, Guid>, IUserEmailStore<CassandraUser, Guid>
     {
-        // A cached copy of some completed task
+        // A cached copy of some completed tasks
         private static readonly Task<bool> TrueTask = Task.FromResult(true);
         private static readonly Task<bool> FalseTask = Task.FromResult(false);
         private static readonly Task CompletedTask = TrueTask;
@@ -22,9 +22,13 @@ namespace AspNet.Identity.Cassandra.Store
         private readonly ISession _session;
 
         // Reusable prepared statements, lazy evaluated
+        private readonly AsyncLazy<PreparedStatement> _createUserByUserName;
+        private readonly AsyncLazy<PreparedStatement> _deleteUserByUserName;
+
         private readonly AsyncLazy<PreparedStatement[]> _createUser;
         private readonly AsyncLazy<PreparedStatement[]> _updateUser;
         private readonly AsyncLazy<PreparedStatement[]> _deleteUser;
+
         private readonly AsyncLazy<PreparedStatement> _findById;
         private readonly AsyncLazy<PreparedStatement> _findByName;
 
@@ -36,6 +40,7 @@ namespace AspNet.Identity.Cassandra.Store
         private readonly AsyncLazy<PreparedStatement> _getClaims;
         private readonly AsyncLazy<PreparedStatement> _addClaim;
         private readonly AsyncLazy<PreparedStatement> _removeClaim;
+        
 
         public CassandraUserStore(ISession session)
         {
@@ -47,15 +52,29 @@ namespace AspNet.Identity.Cassandra.Store
             // _session.GetTable<CassandraUserLogin>().CreateIfNotExists();
 
             // Create some reusable prepared statements so we pay the cost of preparing once, then bind multiple times
+            _createUserByUserName = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
+                "INSERT INTO users_by_username (username, userid, password_hash, security_stamp, two_factor_enabled, access_failed_count, " +
+                "lockout_enabled, lockout_end_date, phone_number, phone_number_confirmed, email, email_confirmed) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
+            _deleteUserByUserName = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("DELETE FROM users_by_username WHERE username = ?"));
+
+            // All the statements needed by the CreateAsync method
             _createUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
             {
                 _session.PrepareAsync("INSERT INTO users (userid, username, password_hash, security_stamp, two_factor_enabled, access_failed_count, " +
                                       "lockout_enabled, lockout_end_date, phone_number, phone_number_confirmed, email, email_confirmed) " +
                                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"),
-                _session.PrepareAsync("INSERT INTO users_by_username (username, userid, password_hash, security_stamp, two_factor_enabled, access_failed_count, " +
-                                      "lockout_enabled, lockout_end_date, phone_number, phone_number_confirmed, email, email_confirmed) " +
-                                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                _createUserByUserName.Value
             }));
+
+            // All the statements needed by the DeleteAsync method
+            _deleteUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new[]
+            {
+                _session.PrepareAsync("DELETE FROM users WHERE userid = ?"),
+                _deleteUserByUserName.Value
+            }));
+
+            // All the statements needed by the UpdateAsync method
             _updateUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
             {
                 _session.PrepareAsync("UPDATE users SET password_hash = ?, security_stamp = ?, two_factor_enabled = ?, access_failed_count = ?, " +
@@ -63,13 +82,11 @@ namespace AspNet.Identity.Cassandra.Store
                                       "WHERE userid = ?"),
                 _session.PrepareAsync("UPDATE users_by_username SET password_hash = ?, security_stamp = ?, two_factor_enabled = ?, access_failed_count = ?, " +
                                       "lockout_enabled = ?, lockout_end_date = ?, phone_number = ?, phone_number_confirmed = ?, email = ?, email_confirmed = ? " +
-                                      "WHERE username = ?")
+                                      "WHERE username = ?"),
+                _deleteUserByUserName.Value,
+                _createUserByUserName.Value
             }));
-            _deleteUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
-            {
-                _session.PrepareAsync("DELETE FROM users WHERE userid = ?"),
-                _session.PrepareAsync("DELETE FROM users_by_username WHERE username = ?")
-            }));
+            
             _findById = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("SELECT * FROM users WHERE userid = ?"));
             _findByName = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("SELECT * FROM users_by_username WHERE username = ?"));
             
@@ -126,8 +143,6 @@ namespace AspNet.Identity.Cassandra.Store
         {
             if (user == null) throw new ArgumentNullException("user");
 
-            // TODO:  Currently we assume username will not change.  Support updating username?
-
             PreparedStatement[] prepared = await _updateUser;
             var batch = new BatchStatement();
 
@@ -135,11 +150,26 @@ namespace AspNet.Identity.Cassandra.Store
             batch.Add(prepared[0].Bind(user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.AccessFailedCount, user.IsLockoutEnabled,
                                        user.LockoutEndDate, user.PhoneNumber, user.IsPhoneNumberConfirmed, user.Email, user.IsEmailConfirmed, user.Id));
 
-            // UPDATE users_by_username ...
-            batch.Add(prepared[1].Bind(user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.AccessFailedCount, user.IsLockoutEnabled,
-                                       user.LockoutEndDate, user.PhoneNumber, user.IsPhoneNumberConfirmed, user.Email, user.IsEmailConfirmed,
-                                       user.UserName));
+            // See if the username changed so we can decide whether we need a different users_by_username record
+            string oldUserName;
+            if (user.HasUserNameChanged(out oldUserName) == false)
+            {
+                // UPDATE users_by_username ... (since username hasn't changed)
+                batch.Add(prepared[1].Bind(user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.AccessFailedCount,
+                                           user.IsLockoutEnabled, user.LockoutEndDate, user.PhoneNumber, user.IsPhoneNumberConfirmed, user.Email,
+                                           user.IsEmailConfirmed, user.UserName));
+            }
+            else
+            {
+                // DELETE FROM users_by_username ... (delete old record since username changed)
+                batch.Add(prepared[2].Bind(oldUserName));
 
+                // INSERT INTO users_by_username ... (insert new record since username changed)
+                batch.Add(prepared[3].Bind(user.UserName, user.Id, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled,
+                                           user.AccessFailedCount, user.IsLockoutEnabled, user.LockoutEndDate, user.PhoneNumber,
+                                           user.IsPhoneNumberConfirmed, user.Email, user.IsEmailConfirmed));
+            }
+            
             await _session.ExecuteAsync(batch).ConfigureAwait(false);
         }
 
@@ -156,8 +186,13 @@ namespace AspNet.Identity.Cassandra.Store
             // DELETE FROM users ...
             batch.Add(prepared[0].Bind(user.Id));
 
+            // Make sure the username didn't change before deleting from users_by_username (not sure this is possible, but protect ourselves anyway)
+            string userName;
+            if (user.HasUserNameChanged(out userName) == false)
+                userName = user.UserName;
+
             // DELETE FROM users_by_username ...
-            batch.Add(prepared[1].Bind(user.UserName));
+            batch.Add(prepared[1].Bind(userName));
             
             await _session.ExecuteAsync(batch).ConfigureAwait(false);
         }

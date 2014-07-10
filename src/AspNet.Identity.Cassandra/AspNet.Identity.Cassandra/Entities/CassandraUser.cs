@@ -48,5 +48,14 @@ namespace AspNet.Identity.Cassandra.Entities
         /// </summary>
         internal DateTimeOffset LockoutEndDate { get; set; }
 
+        /// <summary>
+        /// The user's phone number.
+        /// </summary>
+        internal string PhoneNumber { get; set; }
+
+        /// <summary>
+        /// Whether the user's phone number has been confirmed.
+        /// </summary>
+        internal bool IsPhoneNumberConfirmed { get; set; }
     }
 }

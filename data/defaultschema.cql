@@ -8,6 +8,8 @@ CREATE TABLE users (
     access_failed_count int,
     lockout_enabled boolean,
     lockout_end_date timestamp,
+    phone_number text,
+    phone_number_confirmed boolean,
     PRIMARY KEY (userid)
 );
 
@@ -21,6 +23,8 @@ CREATE TABLE users_by_username (
     access_failed_count int,
     lockout_enabled boolean,
     lockout_end_date timestamp,
+    phone_number text,
+    phone_number_confirmed boolean,
     PRIMARY KEY (username)
 );
 

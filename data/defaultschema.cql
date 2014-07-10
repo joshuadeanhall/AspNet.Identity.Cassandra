@@ -32,6 +32,23 @@ CREATE TABLE users_by_username (
     PRIMARY KEY (username)
 );
 
+// Users, keyed by email address
+CREATE TABLE users_by_email (
+    email text,
+    userid uuid,
+    username text,
+    password_hash text,
+    security_stamp text,
+    two_factor_enabled boolean,
+    access_failed_count int,
+    lockout_enabled boolean,
+    lockout_end_date timestamp,
+    phone_number text,
+    phone_number_confirmed boolean,
+    email_confirmed boolean,
+    PRIMARY KEY (email)
+);
+
 // Logins, keyed by user id
 CREATE TABLE logins (
     userid uuid,

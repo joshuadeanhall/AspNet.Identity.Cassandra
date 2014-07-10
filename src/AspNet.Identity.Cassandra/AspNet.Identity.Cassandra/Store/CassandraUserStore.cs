@@ -23,7 +23,9 @@ namespace AspNet.Identity.Cassandra.Store
 
         // Reusable prepared statements, lazy evaluated
         private readonly AsyncLazy<PreparedStatement> _createUserByUserName;
+        private readonly AsyncLazy<PreparedStatement> _createUserByEmail;
         private readonly AsyncLazy<PreparedStatement> _deleteUserByUserName;
+        private readonly AsyncLazy<PreparedStatement> _deleteUserByEmail; 
 
         private readonly AsyncLazy<PreparedStatement[]> _createUser;
         private readonly AsyncLazy<PreparedStatement[]> _updateUser;
@@ -31,6 +33,7 @@ namespace AspNet.Identity.Cassandra.Store
 
         private readonly AsyncLazy<PreparedStatement> _findById;
         private readonly AsyncLazy<PreparedStatement> _findByName;
+        private readonly AsyncLazy<PreparedStatement> _findByEmail; 
 
         private readonly AsyncLazy<PreparedStatement[]> _addLogin;
         private readonly AsyncLazy<PreparedStatement[]> _removeLogin;
@@ -41,7 +44,6 @@ namespace AspNet.Identity.Cassandra.Store
         private readonly AsyncLazy<PreparedStatement> _addClaim;
         private readonly AsyncLazy<PreparedStatement> _removeClaim;
         
-
         public CassandraUserStore(ISession session)
         {
             _session = session;
@@ -56,22 +58,30 @@ namespace AspNet.Identity.Cassandra.Store
                 "INSERT INTO users_by_username (username, userid, password_hash, security_stamp, two_factor_enabled, access_failed_count, " +
                 "lockout_enabled, lockout_end_date, phone_number, phone_number_confirmed, email, email_confirmed) " +
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
-            _deleteUserByUserName = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("DELETE FROM users_by_username WHERE username = ?"));
+            _createUserByEmail = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
+                "INSERT INTO users_by_email (email, userid, username, password_hash, security_stamp, two_factor_enabled, access_failed_count, " +
+                "lockout_enabled, lockout_end_date, phone_number, phone_number_confirmed, email_confirmed) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
 
+            _deleteUserByUserName = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("DELETE FROM users_by_username WHERE username = ?"));
+            _deleteUserByEmail = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("DELETE FROM users_by_email WHERE email = ?"));
+            
             // All the statements needed by the CreateAsync method
             _createUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
             {
                 _session.PrepareAsync("INSERT INTO users (userid, username, password_hash, security_stamp, two_factor_enabled, access_failed_count, " +
                                       "lockout_enabled, lockout_end_date, phone_number, phone_number_confirmed, email, email_confirmed) " +
                                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"),
-                _createUserByUserName.Value
+                _createUserByUserName.Value,
+                _createUserByEmail.Value
             }));
 
             // All the statements needed by the DeleteAsync method
             _deleteUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new[]
             {
                 _session.PrepareAsync("DELETE FROM users WHERE userid = ?"),
-                _deleteUserByUserName.Value
+                _deleteUserByUserName.Value,
+                _deleteUserByEmail.Value
             }));
 
             // All the statements needed by the UpdateAsync method
@@ -84,11 +94,17 @@ namespace AspNet.Identity.Cassandra.Store
                                       "lockout_enabled = ?, lockout_end_date = ?, phone_number = ?, phone_number_confirmed = ?, email = ?, email_confirmed = ? " +
                                       "WHERE username = ?"),
                 _deleteUserByUserName.Value,
-                _createUserByUserName.Value
+                _createUserByUserName.Value,
+                _session.PrepareAsync("UPDATE users_by_email SET username = ?, password_hash = ?, security_stamp = ?, two_factor_enabled = ?, access_failed_count = ?, " +
+                                      "lockout_enabled = ?, lockout_end_date = ?, phone_number = ?, phone_number_confirmed = ?, email_confirmed = ? " +
+                                      "WHERE email = ?"),
+                _deleteUserByEmail.Value,
+                _createUserByEmail.Value
             }));
             
             _findById = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("SELECT * FROM users WHERE userid = ?"));
             _findByName = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("SELECT * FROM users_by_username WHERE username = ?"));
+            _findByEmail = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("SELECT * FROM users_by_email WHERE email = ?"));
             
             _addLogin = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
             {
@@ -133,6 +149,11 @@ namespace AspNet.Identity.Cassandra.Store
                                        user.IsLockoutEnabled, user.LockoutEndDate, user.PhoneNumber, user.IsPhoneNumberConfirmed, user.Email,
                                        user.IsEmailConfirmed));
 
+            // INSERT INTO users_by_email ...
+            batch.Add(prepared[2].Bind(user.Email, user.Id, user.UserName, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled,
+                                       user.AccessFailedCount, user.IsLockoutEnabled, user.LockoutEndDate, user.PhoneNumber,
+                                       user.IsPhoneNumberConfirmed, user.IsEmailConfirmed));
+
             await _session.ExecuteAsync(batch).ConfigureAwait(false);
         }
 
@@ -169,6 +190,26 @@ namespace AspNet.Identity.Cassandra.Store
                                            user.AccessFailedCount, user.IsLockoutEnabled, user.LockoutEndDate, user.PhoneNumber,
                                            user.IsPhoneNumberConfirmed, user.Email, user.IsEmailConfirmed));
             }
+
+            // See if the email changed so we can decide if we need a different users_by_email record
+            string oldEmail;
+            if (user.HasEmailChanged(out oldEmail) == false)
+            {
+                // UPDATE users_by_email ... (since email hasn't changed)
+                batch.Add(prepared[4].Bind(user.UserName, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.AccessFailedCount,
+                                           user.IsLockoutEnabled, user.LockoutEndDate, user.PhoneNumber, user.IsPhoneNumberConfirmed,
+                                           user.IsEmailConfirmed, user.Email));
+            }
+            else
+            {
+                // DELETE FROM users_by_email ... (delete old record since email changed)
+                batch.Add(prepared[5].Bind(oldEmail));
+
+                // INSERT INTO users_by_email ... (insert new record since email changed)
+                batch.Add(prepared[6].Bind(user.Email, user.Id, user.UserName, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled,
+                                           user.AccessFailedCount, user.IsLockoutEnabled, user.LockoutEndDate, user.PhoneNumber,
+                                           user.IsPhoneNumberConfirmed, user.IsEmailConfirmed));
+            }
             
             await _session.ExecuteAsync(batch).ConfigureAwait(false);
         }
@@ -193,6 +234,14 @@ namespace AspNet.Identity.Cassandra.Store
 
             // DELETE FROM users_by_username ...
             batch.Add(prepared[1].Bind(userName));
+
+            // Make sure email didn't change before deleting from users_by_email
+            string email;
+            if (user.HasEmailChanged(out email) == false)
+                email = user.Email;
+
+            // DELETE FROM users_by_email ...
+            batch.Add(prepared[2].Bind(email));
             
             await _session.ExecuteAsync(batch).ConfigureAwait(false);
         }
@@ -492,9 +541,15 @@ namespace AspNet.Identity.Cassandra.Store
         /// <summary>
         /// Returns the user associated with this email
         /// </summary>
-        public Task<CassandraUser> FindByEmailAsync(string email)
+        public async Task<CassandraUser> FindByEmailAsync(string email)
         {
-            throw new NotImplementedException();
+            if (string.IsNullOrWhiteSpace(email)) throw new ArgumentException("email cannot be null or empty", "email");
+
+            PreparedStatement prepared = await _findByEmail;
+            BoundStatement bound = prepared.Bind(email);
+
+            RowSet rows = await _session.ExecuteAsync(bound).ConfigureAwait(false);
+            return CassandraUser.FromRow(rows.SingleOrDefault());
         }
 
         /// <summary>
@@ -578,8 +633,7 @@ namespace AspNet.Identity.Cassandra.Store
             user.IsPhoneNumberConfirmed = confirmed;
             return CompletedTask;
         }
-
-
+        
         protected void Dispose(bool disposing)
         {
             _session.Dispose();

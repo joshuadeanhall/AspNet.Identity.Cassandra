@@ -12,8 +12,7 @@ namespace AspNet.Identity.Cassandra.Store
     public class CassandraUserStore : IUserStore<CassandraUser, Guid>, IUserLoginStore<CassandraUser, Guid>, IUserClaimStore<CassandraUser, Guid>,
                                       IUserPasswordStore<CassandraUser, Guid>, IUserSecurityStampStore<CassandraUser, Guid>,
                                       IUserTwoFactorStore<CassandraUser, Guid>, IUserLockoutStore<CassandraUser, Guid>, 
-                                      IUserPhoneNumberStore<CassandraUser, Guid>
-        // IUserEmailStore<TUser>,
+                                      IUserPhoneNumberStore<CassandraUser, Guid>, IUserEmailStore<CassandraUser, Guid>
     {
         // A cached copy of some completed task
         private static readonly Task<bool> TrueTask = Task.FromResult(true);
@@ -51,16 +50,20 @@ namespace AspNet.Identity.Cassandra.Store
             _createUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
             {
                 _session.PrepareAsync("INSERT INTO users (userid, username, password_hash, security_stamp, two_factor_enabled, access_failed_count, " +
-                                      "lockout_enabled, lockout_end_date, phone_number, phone_number_confirmed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"),
+                                      "lockout_enabled, lockout_end_date, phone_number, phone_number_confirmed, email, email_confirmed) " +
+                                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"),
                 _session.PrepareAsync("INSERT INTO users_by_username (username, userid, password_hash, security_stamp, two_factor_enabled, access_failed_count, " +
-                                      "lockout_enabled, lockout_end_date, phone_number, phone_number_confirmed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                                      "lockout_enabled, lockout_end_date, phone_number, phone_number_confirmed, email, email_confirmed) " +
+                                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
             }));
             _updateUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
             {
                 _session.PrepareAsync("UPDATE users SET password_hash = ?, security_stamp = ?, two_factor_enabled = ?, access_failed_count = ?, " +
-                                      "lockout_enabled = ?, lockout_end_date = ?, phone_number = ?, phone_number_confirmed = ? WHERE userid = ?"),
+                                      "lockout_enabled = ?, lockout_end_date = ?, phone_number = ?, phone_number_confirmed = ?, email = ?, email_confirmed = ? " +
+                                      "WHERE userid = ?"),
                 _session.PrepareAsync("UPDATE users_by_username SET password_hash = ?, security_stamp = ?, two_factor_enabled = ?, access_failed_count = ?, " +
-                                      "lockout_enabled = ?, lockout_end_date = ?, phone_number = ?, phone_number_confirmed = ? WHERE username = ?")
+                                      "lockout_enabled = ?, lockout_end_date = ?, phone_number = ?, phone_number_confirmed = ?, email = ?, email_confirmed = ? " +
+                                      "WHERE username = ?")
             }));
             _deleteUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
             {
@@ -105,11 +108,13 @@ namespace AspNet.Identity.Cassandra.Store
 
             // INSERT INTO users ...
             batch.Add(prepared[0].Bind(user.Id, user.UserName, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.AccessFailedCount,
-                                       user.IsLockoutEnabled, user.LockoutEndDate, user.PhoneNumber, user.IsPhoneNumberConfirmed));
+                                       user.IsLockoutEnabled, user.LockoutEndDate, user.PhoneNumber, user.IsPhoneNumberConfirmed, user.Email,
+                                       user.IsEmailConfirmed));
 
             // INSERT INTO users_by_username ...
             batch.Add(prepared[1].Bind(user.UserName, user.Id, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.AccessFailedCount,
-                                       user.IsLockoutEnabled, user.LockoutEndDate, user.PhoneNumber, user.IsPhoneNumberConfirmed));
+                                       user.IsLockoutEnabled, user.LockoutEndDate, user.PhoneNumber, user.IsPhoneNumberConfirmed, user.Email,
+                                       user.IsEmailConfirmed));
 
             await _session.ExecuteAsync(batch).ConfigureAwait(false);
         }
@@ -128,11 +133,12 @@ namespace AspNet.Identity.Cassandra.Store
 
             // UPDATE users ...
             batch.Add(prepared[0].Bind(user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.AccessFailedCount, user.IsLockoutEnabled,
-                                       user.LockoutEndDate, user.PhoneNumber, user.IsPhoneNumberConfirmed, user.Id));
+                                       user.LockoutEndDate, user.PhoneNumber, user.IsPhoneNumberConfirmed, user.Email, user.IsEmailConfirmed, user.Id));
 
             // UPDATE users_by_username ...
             batch.Add(prepared[1].Bind(user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.AccessFailedCount, user.IsLockoutEnabled,
-                                       user.LockoutEndDate, user.PhoneNumber, user.IsPhoneNumberConfirmed, user.UserName));
+                                       user.LockoutEndDate, user.PhoneNumber, user.IsPhoneNumberConfirmed, user.Email, user.IsEmailConfirmed,
+                                       user.UserName));
 
             await _session.ExecuteAsync(batch).ConfigureAwait(false);
         }
@@ -197,7 +203,9 @@ namespace AspNet.Identity.Cassandra.Store
                 IsLockoutEnabled = row.GetValue<bool>("lockout_enabled"),
                 LockoutEndDate = row.GetValue<DateTimeOffset>("lockout_end_date"),
                 PhoneNumber = row.GetValue<string>("phone_number"),
-                IsPhoneNumberConfirmed = row.GetValue<bool>("phone_number_confirmed")
+                IsPhoneNumberConfirmed = row.GetValue<bool>("phone_number_confirmed"),
+                Email = row.GetValue<string>("email"),
+                IsEmailConfirmed = row.GetValue<bool>("email_confirmed")
             };
         }
 
@@ -467,42 +475,53 @@ namespace AspNet.Identity.Cassandra.Store
             return CompletedTask;
         }
 
-        public Task SetEmailAsync(TUser user, string email)
+        /// <summary>
+        /// Returns the user associated with this email
+        /// </summary>
+        public Task<CassandraUser> FindByEmailAsync(string email)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Set the user email
+        /// </summary>
+        public Task SetEmailAsync(CassandraUser user, string email)
         {
             if (user == null) throw new ArgumentNullException("user");
             if (email == null) throw new ArgumentNullException("email");
 
             user.Email = email;
-            return Task.FromResult(0);
+            return CompletedTask;
         }
 
-        public Task<string> GetEmailAsync(TUser user)
+        /// <summary>
+        /// Get the user email
+        /// </summary>
+        public Task<string> GetEmailAsync(CassandraUser user)
         {
             if (user == null) throw new ArgumentNullException("user");
-
             return Task.FromResult(user.Email);
         }
 
-        public Task<bool> GetEmailConfirmedAsync(TUser user)
+        /// <summary>
+        /// Returns true if the user email is confirmed
+        /// </summary>
+        public Task<bool> GetEmailConfirmedAsync(CassandraUser user)
         {
             if (user == null) throw new ArgumentNullException("user");
-
-            return Task.FromResult(user.EmailConfirmedOn != null);
+            return Task.FromResult(user.IsEmailConfirmed);
         }
 
-        public Task SetEmailConfirmedAsync(TUser user, bool confirmed)
+        /// <summary>
+        /// Sets whether the user email is confirmed
+        /// </summary>
+        public Task SetEmailConfirmedAsync(CassandraUser user, bool confirmed)
         {
             if (user == null) throw new ArgumentNullException("user");
 
-            if (confirmed)
-            {
-                user.EmailConfirmedOn = DateTime.Now;
-            }
-            else
-            {
-                user.EmailConfirmedOn = null;
-            }
-            return Task.FromResult(0);
+            user.IsEmailConfirmed = confirmed;
+            return CompletedTask;
         }
 
         /// <summary>

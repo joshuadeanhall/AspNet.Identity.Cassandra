@@ -10,6 +10,8 @@ CREATE TABLE users (
     lockout_end_date timestamp,
     phone_number text,
     phone_number_confirmed boolean,
+    email text,
+    email_confirmed boolean,
     PRIMARY KEY (userid)
 );
 
@@ -25,6 +27,8 @@ CREATE TABLE users_by_username (
     lockout_end_date timestamp,
     phone_number text,
     phone_number_confirmed boolean,
+    email text,
+    email_confirmed boolean,
     PRIMARY KEY (username)
 );
 

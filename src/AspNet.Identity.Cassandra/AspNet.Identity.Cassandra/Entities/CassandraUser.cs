@@ -57,5 +57,15 @@ namespace AspNet.Identity.Cassandra.Entities
         /// Whether the user's phone number has been confirmed.
         /// </summary>
         internal bool IsPhoneNumberConfirmed { get; set; }
+
+        /// <summary>
+        /// The user's email address.
+        /// </summary>
+        internal string Email { get; set; }
+
+        /// <summary>
+        /// Whether the user's email address has been confirmed.
+        /// </summary>
+        internal bool IsEmailConfirmed { get; set; }
     }
 }

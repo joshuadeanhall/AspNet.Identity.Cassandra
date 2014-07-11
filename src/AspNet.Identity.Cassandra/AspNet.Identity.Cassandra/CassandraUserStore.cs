@@ -44,15 +44,17 @@ namespace AspNet.Identity.Cassandra
         private readonly AsyncLazy<PreparedStatement> _addClaim;
         private readonly AsyncLazy<PreparedStatement> _removeClaim;
         
-        public CassandraUserStore(ISession session, bool disposeOfSession = false)
+        /// <summary>
+        /// Creates a new instance of CassandraUserStore that will use the provided ISession instance to talk to Cassandra.  Optionally,
+        /// specify whether the ISession instance should be Disposed when this class is Disposed.
+        /// </summary>
+        /// <param name="session">The session for talking to the Cassandra keyspace.</param>
+        /// <param name="disposeOfSession">Whether to dispose of the session instance when this object is disposed.</param>
+        /// <param name="createSchema">Whether to create the schema tables if they don't exist.</param>
+        public CassandraUserStore(ISession session, bool disposeOfSession = false, bool createSchema = true)
         {
             _session = session;
             _disposeOfSession = disposeOfSession;
-
-            // TODO:  Currently broken because no attributes on POCOs
-            // _session.GetTable<CassandraUser>().CreateIfNotExists();
-            // _session.GetTable<CassandraUserClaim>().CreateIfNotExists();
-            // _session.GetTable<CassandraUserLogin>().CreateIfNotExists();
 
             // Create some reusable prepared statements so we pay the cost of preparing once, then bind multiple times
             _createUserByUserName = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
@@ -126,6 +128,10 @@ namespace AspNet.Identity.Cassandra
                 "INSERT INTO claims (userid, type, value) VALUES (?, ?, ?)"));
             _removeClaim = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
                 "DELETE FROM claims WHERE userId = ? AND type = ? AND value = ?"));
+
+            // Create the schema if necessary
+            if (createSchema)
+                SchemaCreationHelper.CreateSchemaIfNotExists(session);
         }
 
         /// <summary>

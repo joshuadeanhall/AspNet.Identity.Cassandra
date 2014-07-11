@@ -1,5 +1,5 @@
 // Users, keyed by user id
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     userid uuid,
     username text,
     password_hash text,
@@ -16,7 +16,7 @@ CREATE TABLE users (
 );
 
 // Users, keyed by username
-CREATE TABLE users_by_username (
+CREATE TABLE IF NOT EXISTS users_by_username (
     username text,
     userid uuid,
     password_hash text,
@@ -33,7 +33,7 @@ CREATE TABLE users_by_username (
 );
 
 // Users, keyed by email address
-CREATE TABLE users_by_email (
+CREATE TABLE IF NOT EXISTS users_by_email (
     email text,
     userid uuid,
     username text,
@@ -50,7 +50,7 @@ CREATE TABLE users_by_email (
 );
 
 // Logins, keyed by user id
-CREATE TABLE logins (
+CREATE TABLE IF NOT EXISTS logins (
     userid uuid,
     login_provider text,
     provider_key text,
@@ -58,7 +58,7 @@ CREATE TABLE logins (
 );
 
 // Logins, keyed by provider and provider key
-CREATE TABLE logins_by_provider (
+CREATE TABLE IF NOT EXISTS logins_by_provider (
     login_provider text,
     provider_key text,
     userid uuid,
@@ -66,7 +66,7 @@ CREATE TABLE logins_by_provider (
 );
 
 // Claims, keyed by user id
-CREATE TABLE claims (
+CREATE TABLE IF NOT EXISTS claims (
     userid uuid,
     type text,
     value text,

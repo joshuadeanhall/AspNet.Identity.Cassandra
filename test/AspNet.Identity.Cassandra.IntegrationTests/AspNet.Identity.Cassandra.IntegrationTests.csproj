@@ -85,7 +85,7 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\AspNet.Identity.Cassandra\AspNet.Identity.Cassandra\AspNet.Identity.Cassandra.csproj">
+    <ProjectReference Include="..\..\src\AspNet.Identity.Cassandra\AspNet.Identity.Cassandra.csproj">
       <Project>{6a15a151-b338-4498-8c05-cd9a1f1e333d}</Project>
       <Name>AspNet.Identity.Cassandra</Name>
     </ProjectReference>

@@ -74,7 +74,10 @@
     <Otherwise />
   </Choose>
   <ItemGroup>
-    <Compile Include="CassandraUserStoreTest.cs" />
+    <Compile Include="AssertionExtensions.cs" />
+    <Compile Include="BasicCrudTests.cs" />
+    <Compile Include="EmailStoreTests.cs" />
+    <Compile Include="IntegrationTestBase.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

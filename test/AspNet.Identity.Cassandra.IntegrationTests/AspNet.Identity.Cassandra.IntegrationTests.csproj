@@ -46,6 +46,12 @@
     <Reference Include="Cassandra.Data.Linq">
       <HintPath>..\..\src\AspNet.Identity.Cassandra\packages\CassandraCSharpDriver.2.0.3\lib\net40\Cassandra.Data.Linq.dll</HintPath>
     </Reference>
+    <Reference Include="FluentAssertions">
+      <HintPath>..\..\src\AspNet.Identity.Cassandra\packages\FluentAssertions.3.0.107\lib\net45\FluentAssertions.dll</HintPath>
+    </Reference>
+    <Reference Include="FluentAssertions.Core">
+      <HintPath>..\..\src\AspNet.Identity.Cassandra\packages\FluentAssertions.3.0.107\lib\net45\FluentAssertions.Core.dll</HintPath>
+    </Reference>
     <Reference Include="LZ4">
       <HintPath>..\..\src\AspNet.Identity.Cassandra\packages\lz4net.1.0.5.93\lib\net40-client\LZ4.dll</HintPath>
     </Reference>
@@ -56,6 +62,8 @@
       <HintPath>..\..\src\AspNet.Identity.Cassandra\packages\NUnit.2.6.3\lib\nunit.framework.dll</HintPath>
     </Reference>
     <Reference Include="System" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq" />
   </ItemGroup>
   <Choose>
     <When Condition="('$(VisualStudioVersion)' == '10.0' or '$(VisualStudioVersion)' == '') and '$(TargetFrameworkVersion)' == 'v3.5'">

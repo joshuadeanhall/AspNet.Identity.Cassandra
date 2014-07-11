@@ -90,7 +90,7 @@ namespace AspNet.Identity.Cassandra
             // All the statements needed by the UpdateAsync method
             _updateUser = new AsyncLazy<PreparedStatement[]>(() => Task.WhenAll(new []
             {
-                _session.PrepareAsync("UPDATE users SET password_hash = ?, security_stamp = ?, two_factor_enabled = ?, access_failed_count = ?, " +
+                _session.PrepareAsync("UPDATE users SET username = ?, password_hash = ?, security_stamp = ?, two_factor_enabled = ?, access_failed_count = ?, " +
                                       "lockout_enabled = ?, lockout_end_date = ?, phone_number = ?, phone_number_confirmed = ?, email = ?, email_confirmed = ? " +
                                       "WHERE userid = ?"),
                 _session.PrepareAsync("UPDATE users_by_username SET password_hash = ?, security_stamp = ?, two_factor_enabled = ?, access_failed_count = ?, " +
@@ -151,16 +151,23 @@ namespace AspNet.Identity.Cassandra
                                        user.IsLockoutEnabled, user.LockoutEndDate, user.PhoneNumber, user.IsPhoneNumberConfirmed, user.Email,
                                        user.IsEmailConfirmed));
 
-            // INSERT INTO users_by_username ...
-            batch.Add(prepared[1].Bind(user.UserName, user.Id, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.AccessFailedCount,
-                                       user.IsLockoutEnabled, user.LockoutEndDate, user.PhoneNumber, user.IsPhoneNumberConfirmed, user.Email,
-                                       user.IsEmailConfirmed));
+            // Only insert into username and email tables if those have a value
+            if (string.IsNullOrEmpty(user.UserName) == false)
+            {
+                // INSERT INTO users_by_username ...
+                batch.Add(prepared[1].Bind(user.UserName, user.Id, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.AccessFailedCount,
+                                           user.IsLockoutEnabled, user.LockoutEndDate, user.PhoneNumber, user.IsPhoneNumberConfirmed, user.Email,
+                                           user.IsEmailConfirmed));
+            }
 
-            // INSERT INTO users_by_email ...
-            batch.Add(prepared[2].Bind(user.Email, user.Id, user.UserName, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled,
-                                       user.AccessFailedCount, user.IsLockoutEnabled, user.LockoutEndDate, user.PhoneNumber,
-                                       user.IsPhoneNumberConfirmed, user.IsEmailConfirmed));
-
+            if (string.IsNullOrEmpty(user.Email) == false)
+            {
+                // INSERT INTO users_by_email ...
+                batch.Add(prepared[2].Bind(user.Email, user.Id, user.UserName, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled,
+                                           user.AccessFailedCount, user.IsLockoutEnabled, user.LockoutEndDate, user.PhoneNumber,
+                                           user.IsPhoneNumberConfirmed, user.IsEmailConfirmed));
+            }
+            
             await _session.ExecuteAsync(batch).ConfigureAwait(false);
         }
 
@@ -175,12 +182,13 @@ namespace AspNet.Identity.Cassandra
             var batch = new BatchStatement();
 
             // UPDATE users ...
-            batch.Add(prepared[0].Bind(user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.AccessFailedCount, user.IsLockoutEnabled,
-                                       user.LockoutEndDate, user.PhoneNumber, user.IsPhoneNumberConfirmed, user.Email, user.IsEmailConfirmed, user.Id));
+            batch.Add(prepared[0].Bind(user.UserName, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.AccessFailedCount,
+                                       user.IsLockoutEnabled, user.LockoutEndDate, user.PhoneNumber, user.IsPhoneNumberConfirmed, user.Email,
+                                       user.IsEmailConfirmed, user.Id));
 
             // See if the username changed so we can decide whether we need a different users_by_username record
             string oldUserName;
-            if (user.HasUserNameChanged(out oldUserName) == false)
+            if (user.HasUserNameChanged(out oldUserName) == false && string.IsNullOrEmpty(user.UserName) == false)
             {
                 // UPDATE users_by_username ... (since username hasn't changed)
                 batch.Add(prepared[1].Bind(user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.AccessFailedCount,
@@ -190,17 +198,23 @@ namespace AspNet.Identity.Cassandra
             else
             {
                 // DELETE FROM users_by_username ... (delete old record since username changed)
-                batch.Add(prepared[2].Bind(oldUserName));
+                if (string.IsNullOrEmpty(oldUserName) == false)
+                {
+                    batch.Add(prepared[2].Bind(oldUserName));
+                }
 
                 // INSERT INTO users_by_username ... (insert new record since username changed)
-                batch.Add(prepared[3].Bind(user.UserName, user.Id, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled,
-                                           user.AccessFailedCount, user.IsLockoutEnabled, user.LockoutEndDate, user.PhoneNumber,
-                                           user.IsPhoneNumberConfirmed, user.Email, user.IsEmailConfirmed));
+                if (string.IsNullOrEmpty(user.UserName) == false)
+                {
+                    batch.Add(prepared[3].Bind(user.UserName, user.Id, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled,
+                                               user.AccessFailedCount, user.IsLockoutEnabled, user.LockoutEndDate, user.PhoneNumber,
+                                               user.IsPhoneNumberConfirmed, user.Email, user.IsEmailConfirmed));
+                }
             }
 
             // See if the email changed so we can decide if we need a different users_by_email record
             string oldEmail;
-            if (user.HasEmailChanged(out oldEmail) == false)
+            if (user.HasEmailChanged(out oldEmail) == false && string.IsNullOrEmpty(user.Email) == false)
             {
                 // UPDATE users_by_email ... (since email hasn't changed)
                 batch.Add(prepared[4].Bind(user.UserName, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled, user.AccessFailedCount,
@@ -210,12 +224,18 @@ namespace AspNet.Identity.Cassandra
             else
             {
                 // DELETE FROM users_by_email ... (delete old record since email changed)
-                batch.Add(prepared[5].Bind(oldEmail));
-
+                if (string.IsNullOrEmpty(oldEmail) == false)
+                {
+                    batch.Add(prepared[5].Bind(oldEmail));
+                }
+                
                 // INSERT INTO users_by_email ... (insert new record since email changed)
-                batch.Add(prepared[6].Bind(user.Email, user.Id, user.UserName, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled,
+                if (string.IsNullOrEmpty(user.Email) == false)
+                {
+                    batch.Add(prepared[6].Bind(user.Email, user.Id, user.UserName, user.PasswordHash, user.SecurityStamp, user.IsTwoFactorEnabled,
                                            user.AccessFailedCount, user.IsLockoutEnabled, user.LockoutEndDate, user.PhoneNumber,
                                            user.IsPhoneNumberConfirmed, user.IsEmailConfirmed));
+                }
             }
             
             await _session.ExecuteAsync(batch).ConfigureAwait(false);
@@ -240,15 +260,17 @@ namespace AspNet.Identity.Cassandra
                 userName = user.UserName;
 
             // DELETE FROM users_by_username ...
-            batch.Add(prepared[1].Bind(userName));
+            if (string.IsNullOrEmpty(userName) == false)
+                batch.Add(prepared[1].Bind(userName));
 
-            // Make sure email didn't change before deleting from users_by_email
+            // Make sure email didn't change before deleting from users_by_email (also not sure this is possible)
             string email;
             if (user.HasEmailChanged(out email) == false)
                 email = user.Email;
 
             // DELETE FROM users_by_email ...
-            batch.Add(prepared[2].Bind(email));
+            if (string.IsNullOrEmpty(email) == false)
+                batch.Add(prepared[2].Bind(email));
             
             await _session.ExecuteAsync(batch).ConfigureAwait(false);
         }

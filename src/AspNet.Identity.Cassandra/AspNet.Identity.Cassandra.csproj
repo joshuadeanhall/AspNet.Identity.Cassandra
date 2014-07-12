@@ -58,17 +58,15 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AsyncLazy.cs" />
-    <Compile Include="Constants.cs" />
-    <Compile Include="Entities\CassandraUser.cs" />
-    <Compile Include="Entities\CassandraUserClaim.cs" />
-    <Compile Include="Entities\CassandraUserLogin.cs" />
-    <Compile Include="Entities\CassandraUserRole.cs" />
+    <Compile Include="CassandraUser.cs" />
     <Compile Include="HelperExtensions.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Store\CassandraUserStore.cs" />
+    <Compile Include="CassandraUserStore.cs" />
+    <Compile Include="SchemaCreationHelper.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="AspNet.Identity.Cassandra.nuspec" />
+    <EmbeddedResource Include="defaultschema.cql" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup />

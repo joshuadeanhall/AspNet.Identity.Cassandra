@@ -424,8 +424,8 @@ namespace AspNet.Identity.Cassandra
         public Task SetPasswordHashAsync(CassandraUser user, string passwordHash)
         {
             if (user == null) throw new ArgumentNullException("user");
-            if (passwordHash == null) throw new ArgumentNullException("passwordHash");
-
+            
+            // Password hash can be null when removing a password from a user
             user.PasswordHash = passwordHash;
             return CompletedTask;
         }

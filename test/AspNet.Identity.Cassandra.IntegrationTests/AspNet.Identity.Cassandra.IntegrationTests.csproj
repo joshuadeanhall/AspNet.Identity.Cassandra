@@ -78,6 +78,7 @@
     <Compile Include="BasicCrudTests.cs" />
     <Compile Include="EmailStoreTests.cs" />
     <Compile Include="IntegrationTestBase.cs" />
+    <Compile Include="PasswordTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

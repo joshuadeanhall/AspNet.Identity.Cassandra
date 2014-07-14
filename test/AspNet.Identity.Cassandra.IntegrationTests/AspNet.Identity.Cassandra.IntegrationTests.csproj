@@ -79,6 +79,7 @@
     <Compile Include="ClaimsTests.cs" />
     <Compile Include="EmailStoreTests.cs" />
     <Compile Include="IntegrationTestBase.cs" />
+    <Compile Include="LockoutTests.cs" />
     <Compile Include="LoginsTests.cs" />
     <Compile Include="PasswordTests.cs" />
     <Compile Include="PhoneNumberStoreTests.cs" />

@@ -121,7 +121,7 @@ namespace AspNet.Identity.Cassandra
             }));
             _getLogins = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("SELECT * FROM logins WHERE userId = ?"));
             _getLoginsByProvider = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
-                "SELECT * FROM logins WHERE login_provider = ? AND provider_key = ?"));
+                "SELECT * FROM logins_by_provider WHERE login_provider = ? AND provider_key = ?"));
 
             _getClaims = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync("SELECT * FROM claims WHERE userId = ?"));
             _addClaim = new AsyncLazy<PreparedStatement>(() => _session.PrepareAsync(
@@ -424,8 +424,8 @@ namespace AspNet.Identity.Cassandra
         public Task SetPasswordHashAsync(CassandraUser user, string passwordHash)
         {
             if (user == null) throw new ArgumentNullException("user");
-            if (passwordHash == null) throw new ArgumentNullException("passwordHash");
-
+            
+            // Password hash can be null when removing a password from a user
             user.PasswordHash = passwordHash;
             return CompletedTask;
         }

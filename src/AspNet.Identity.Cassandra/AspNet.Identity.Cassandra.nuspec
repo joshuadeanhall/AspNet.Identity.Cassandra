@@ -4,7 +4,7 @@
     <id>$id$</id>
     <version>$version$</version>
     <title>$title$</title>
-    <authors>$author$</authors>
+    <authors>Joshua Hall, Luke Tillman</authors>
     <owners>$author$</owners>
     <licenseUrl>https://raw.githubusercontent.com/joshuadeanhall/AspNet.Identity.Cassandra/master/LICENSE</licenseUrl>
     <projectUrl>https://github.com/joshuadeanhall/AspNet.Identity.Cassandra</projectUrl>
@@ -13,6 +13,6 @@
     <tags>Identity AspNet Cassandra Membership</tags>
   </metadata>
   <files>
-    <file src="..\..\..\build\readme.txt" />
+    <file src="..\..\build\readme.txt" />
   </files>
 </package>

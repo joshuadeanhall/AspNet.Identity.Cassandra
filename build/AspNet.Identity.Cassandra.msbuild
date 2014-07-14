@@ -9,7 +9,7 @@
   <Target Name="Default" DependsOnTargets="Package" />
 
   <Target Name="Package" DependsOnTargets="Compile">
-    <Exec Command="$(NugetExeDir)\nuget.exe pack %(ProjectFiles.FullPath) -Build -OutputDirectory $(NuGetPackageOutputDir) -NonInteractive -Verbosity detailed" />
+    <Exec Command="$(NugetExeDir)\nuget.exe pack %(ProjectFiles.FullPath) -Build -Properties Configuration=Release -OutputDirectory $(NuGetPackageOutputDir) -NonInteractive -Verbosity detailed" />
   </Target>
 
   <Target Name="Compile" DependsOnTargets="Init">

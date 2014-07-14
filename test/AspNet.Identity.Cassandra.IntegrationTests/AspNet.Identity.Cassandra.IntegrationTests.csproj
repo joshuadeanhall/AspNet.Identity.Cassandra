@@ -47,10 +47,10 @@
       <HintPath>..\..\src\AspNet.Identity.Cassandra\packages\CassandraCSharpDriver.2.0.3\lib\net40\Cassandra.Data.Linq.dll</HintPath>
     </Reference>
     <Reference Include="FluentAssertions">
-      <HintPath>..\..\src\AspNet.Identity.Cassandra\packages\FluentAssertions.3.0.107\lib\net45\FluentAssertions.dll</HintPath>
+      <HintPath>..\..\src\packages\FluentAssertions.3.0.107\lib\net45\FluentAssertions.dll</HintPath>
     </Reference>
     <Reference Include="FluentAssertions.Core">
-      <HintPath>..\..\src\AspNet.Identity.Cassandra\packages\FluentAssertions.3.0.107\lib\net45\FluentAssertions.Core.dll</HintPath>
+      <HintPath>..\..\src\packages\FluentAssertions.3.0.107\lib\net45\FluentAssertions.Core.dll</HintPath>
     </Reference>
     <Reference Include="LZ4">
       <HintPath>..\..\src\AspNet.Identity.Cassandra\packages\lz4net.1.0.5.93\lib\net40-client\LZ4.dll</HintPath>
@@ -88,7 +88,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
-    <None Include="packages.config" />
+    <None Include="packages.config">
+      <SubType>Designer</SubType>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\AspNet.Identity.Cassandra\AspNet.Identity.Cassandra.csproj">

@@ -14,13 +14,10 @@ require-param $nugetApiKey -paramName "nugetApiKey"
 
 #safely find the solutionDir
 $ps1Dir = (Split-Path -parent $MyInvocation.MyCommand.Definition)
-echo $ps1Dir
 $solutionDir = Split-Path -Path $ps1Dir -Parent
-$solutionDir = "$solutionDir\src\AspNet.Identity.Cassandra"
-echo $solutionDir
-$nugetExePath = resolve-path(join-path $solutionDir ".nuget")
+$nugetExePath = resolve-path(join-path $solutionDir "\src\.nuget")
 
-$packages = dir "$solutionDir\..\..\artifacts\packages\*.Identity.*.nupkg"
+$packages = dir "$solutionDir\artifacts\packages\*.Identity.*.nupkg"
 
 foreach($package in $packages) { 
     #$package is type of System.IO.FileInfo

@@ -23,7 +23,7 @@ namespace AspNet.Identity.Cassandra.IntegrationTests
             // Create a user
             var user = new CassandraUser(Guid.NewGuid()) { UserName = "emailUser1" };
             await UserManager.CreateAsync(user);
-
+            
             // User should not have an email address initially
             string userEmail = await UserManager.GetEmailAsync(user.Id);
             userEmail.Should().BeNullOrEmpty();

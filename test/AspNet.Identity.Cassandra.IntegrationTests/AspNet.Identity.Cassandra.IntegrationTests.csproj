@@ -76,8 +76,10 @@
   <ItemGroup>
     <Compile Include="AssertionExtensions.cs" />
     <Compile Include="BasicCrudTests.cs" />
+    <Compile Include="ClaimsTests.cs" />
     <Compile Include="EmailStoreTests.cs" />
     <Compile Include="IntegrationTestBase.cs" />
+    <Compile Include="LoginsTests.cs" />
     <Compile Include="PasswordTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

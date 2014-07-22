@@ -7,4 +7,3 @@ Once installed you will need to make some minor modification to the AccountContr
 
 For a simple example please refer to the example in the source code. 
 
-FindByEmailAsync is currently not supported.

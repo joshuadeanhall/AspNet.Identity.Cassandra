@@ -18,26 +18,23 @@ createSchema = false and to run the cql script in defaultschema.cql.
 
 The script will create the following tables
 
-First Header    | Second Header
-------------- | -------------
-Content Cell  | Content Cell
-Content Cell  | Content Cell
-
 
 users 
-------------- 
-userid uuid  (Primary Key)
-username text
-password_hash text
-security_stamp text
-two_factor_enabled boolean
-access_failed_count int
-lockout_enabled boolean
-lockout_end_date timestamp
-phone_number text
-phone_number_confirmed boolean
-email text
-email_confirmed boolean
+
+column        	| type    	| key 
+------------- 	| ------- 	| --------
+userid			| uuid		|  (Primary Key)
+username 		| text		|	
+password_hash	| text		|
+security_stamp	| text		|
+two_factor_enabled	| boolean	|
+access_failed_count	| int	|
+lockout_enabled	| boolean	|
+lockout_end_date	| timestamp	|
+phone_number	| text	|
+phone_number_confirmed	| boolean	|
+email			| text		|
+email_confirmed	| boolean	|
 
 users_by_username
 
@@ -83,7 +80,6 @@ column			| type		| key
 userid	| uuid	| PK1
 login_provider	| text	| PK2
 provider_key 	| text | PK3
-    PRIMARY KEY(userid, login_provider, provider_key)
 
 
 

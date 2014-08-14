@@ -18,6 +18,11 @@ createSchema = false and to run the cql script in defaultschema.cql.
 
 The script will create the following tables
 
+First Header    | Second Header
+------------- | -------------
+Content Cell  | Content Cell
+Content Cell  | Content Cell
+
 
 users 
 ------------- 
@@ -35,6 +40,7 @@ email text
 email_confirmed boolean
 
 users_by_username
+
 column        	| type    	| key 
 ------------- 	| ------- 	| --------
 username      	| text		| PK
@@ -52,6 +58,8 @@ email_confirmed	| boolean	|
 
 
 users_by_email 
+
+
 column			| type		| key
 ---------------	| ---------	| ------
 email 			| text		| PK
@@ -69,6 +77,7 @@ email_confirmed	| boolean	|
 
 
 logins 
+
 column			| type		| key
 ---------------	| ---------	| ------
 userid	| uuid	| PK1
@@ -77,7 +86,11 @@ provider_key 	| text | PK3
     PRIMARY KEY(userid, login_provider, provider_key)
 
 
-logins_by_provider 
+
+
+logins_by_provider
+
+
 column			| type		| key
 ---------------	| ---------	| ------
 login_provider 	| text	| PK1
@@ -86,6 +99,7 @@ userid 			| uuid 	|
 
 
 claims 
+
 column			| type		| key
 ---------------	| ---------	| ------
 userid			| uuid		| PK1

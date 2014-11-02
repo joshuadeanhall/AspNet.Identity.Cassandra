@@ -25,52 +25,52 @@ namespace AspNet.Identity.Cassandra
         /// <summary>
         /// The password hash for the user.
         /// </summary>
-        internal string PasswordHash { get; set; }
+        public string PasswordHash { get; set; }
 
         /// <summary>
         /// The security stamp for the user.
         /// </summary>
-        internal string SecurityStamp { get; set; }
+        public string SecurityStamp { get; set; }
 
         /// <summary>
         /// Whether or not two factor authentication is enabled for the user.
         /// </summary>
-        internal bool IsTwoFactorEnabled { get; set; }
+        public bool IsTwoFactorEnabled { get; set; }
 
         /// <summary>
         /// The number of times the user has tried and failed to login.
         /// </summary>
-        internal int AccessFailedCount { get; set; }
+        public int AccessFailedCount { get; set; }
 
         /// <summary>
         /// Whether or not lockout is enabled for the user.
         /// </summary>
-        internal bool IsLockoutEnabled { get; set; }
+        public bool IsLockoutEnabled { get; set; }
 
         /// <summary>
         /// When the user's lockout period will end.
         /// </summary>
-        internal DateTimeOffset LockoutEndDate { get; set; }
+        public DateTimeOffset LockoutEndDate { get; set; }
 
         /// <summary>
         /// The user's phone number.
         /// </summary>
-        internal string PhoneNumber { get; set; }
+        public string PhoneNumber { get; set; }
 
         /// <summary>
         /// Whether the user's phone number has been confirmed.
         /// </summary>
-        internal bool IsPhoneNumberConfirmed { get; set; }
+        public bool IsPhoneNumberConfirmed { get; set; }
 
         /// <summary>
         /// The user's email address.
         /// </summary>
-        internal string Email { get; set; }
+        public string Email { get; set; }
 
         /// <summary>
         /// Whether the user's email address has been confirmed.
         /// </summary>
-        internal bool IsEmailConfirmed { get; set; }
+        public bool IsEmailConfirmed { get; set; }
 
         /// <summary>
         /// Creates a new CassandraUser with the Id specified.
